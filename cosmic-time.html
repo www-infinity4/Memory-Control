@@ -1,0 +1,1122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Cosmic Time — Memory Control</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:      #03070d;
+      --surface: #0b1523;
+      --border:  #1a2e46;
+      --accent:  #00d4ff;
+      --violet:  #7c3aed;
+      --green:   #10b981;
+      --amber:   #f59e0b;
+      --red:     #f43f5e;
+      --rose:    #ec4899;
+      --text:    #c8d8ea;
+      --muted:   #4a6070;
+      --font:    'Segoe UI', system-ui, sans-serif;
+      --mono:    'Courier New', monospace;
+    }
+    html { scroll-behavior: smooth; }
+    body { background: var(--bg); color: var(--text); font-family: var(--font); overflow-x: hidden; }
+
+    /* ── NAV ── */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      background: rgba(3,7,13,.92); border-bottom: 1px solid var(--border);
+      backdrop-filter: blur(12px);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 28px; height: 52px;
+    }
+    .nav-logo { font-size: 13px; font-weight: 700; color: var(--accent);
+                letter-spacing: .1em; text-transform: uppercase; text-decoration: none; }
+    .nav-links { display: flex; gap: 6px; }
+    .nav-links a {
+      font-size: 11px; letter-spacing: .08em; text-transform: uppercase;
+      padding: 5px 12px; border-radius: 6px; text-decoration: none;
+      color: var(--muted); border: 1px solid transparent; transition: all .2s;
+    }
+    .nav-links a:hover, .nav-links a.active {
+      color: var(--accent); border-color: var(--accent);
+      background: rgba(0,212,255,.07);
+    }
+
+    /* ── HERO ── */
+    .hero {
+      height: 100vh; position: relative; overflow: hidden;
+      display: flex; align-items: center; justify-content: center;
+    }
+    #hero-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+    .hero-content {
+      position: relative; z-index: 2; text-align: center;
+      max-width: 800px; padding: 0 24px;
+    }
+    .eyebrow { font-size: 10px; letter-spacing: .22em; text-transform: uppercase;
+               color: var(--accent); margin-bottom: 14px; }
+    h1.hero-title {
+      font-size: clamp(28px, 5.5vw, 54px); font-weight: 800; line-height: 1.1;
+      background: linear-gradient(130deg, #fff 20%, var(--accent) 60%, var(--violet));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      margin-bottom: 18px;
+    }
+    .hero-sub { font-size: 15px; color: var(--muted); line-height: 1.75; margin-bottom: 28px; }
+    .hero-legend {
+      display: flex; gap: 20px; justify-content: center; flex-wrap: wrap;
+    }
+    .legend-item { display: flex; align-items: center; gap: 7px; font-size: 11px; color: var(--muted); }
+    .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+    /* ── SECTIONS ── */
+    .section {
+      padding: 100px 24px 70px;
+      border-top: 1px solid var(--border);
+      display: flex; flex-direction: column; align-items: center;
+    }
+    .section-inner { width: 100%; max-width: 1080px; }
+    .section-tag { font-size: 9px; letter-spacing: .2em; text-transform: uppercase;
+                   color: var(--muted); margin-bottom: 8px; }
+    h2.section-title { font-size: clamp(20px, 3.5vw, 34px); font-weight: 700;
+                       color: #fff; margin-bottom: 10px; line-height: 1.25; }
+
+    /* ── THOUGHT EXPANSION BLOCK ── */
+    .thought-block {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 14px; padding: 28px 32px; margin-bottom: 28px;
+    }
+    .thought-block p { font-size: 14px; color: var(--text); line-height: 1.85;
+                       margin-bottom: 14px; }
+    .thought-block p:last-child { margin-bottom: 0; }
+    .thought-block strong { color: #fff; }
+    .thought-block em { color: var(--accent); font-style: normal; }
+    .thought-block.v em { color: var(--violet); }
+    .thought-block.g em { color: var(--green); }
+    .thought-block.a em { color: var(--amber); }
+
+    /* ── VIZ BOX ── */
+    .viz-box {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 14px; overflow: hidden;
+    }
+    .viz-box canvas { display: block; width: 100%; }
+    .viz-caption {
+      padding: 12px 20px; font-size: 11px; color: var(--muted);
+      line-height: 1.6; border-top: 1px solid var(--border);
+      font-family: var(--mono);
+    }
+    .viz-caption em { color: var(--accent); font-style: normal; }
+
+    /* ── CALLOUTS ── */
+    .callout {
+      border-left: 3px solid var(--accent);
+      background: rgba(0,212,255,.04);
+      border-radius: 0 8px 8px 0;
+      padding: 14px 18px; margin: 20px 0;
+      font-size: 13px; color: var(--text); line-height: 1.75;
+    }
+    .callout.v { border-color: var(--violet); background: rgba(124,58,237,.04); }
+    .callout.g { border-color: var(--green);  background: rgba(16,185,129,.04); }
+    .callout.a { border-color: var(--amber);  background: rgba(245,158,11,.04); }
+    .callout strong { color: var(--accent); }
+    .callout.v strong { color: var(--violet); }
+    .callout.g strong { color: var(--green); }
+    .callout.a strong { color: var(--amber); }
+
+    /* ── GRID ── */
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px; }
+    @media (max-width: 700px) { .two-col { grid-template-columns: 1fr; } }
+
+    /* ── INSIGHT PILLS ── */
+    .pills { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+    .pill { font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+            padding: 4px 13px; border-radius: 20px; border: 1px solid; }
+    .pill.c { border-color: var(--accent);  color: var(--accent); }
+    .pill.v { border-color: var(--violet);  color: var(--violet); }
+    .pill.g { border-color: var(--green);   color: var(--green); }
+    .pill.a { border-color: var(--amber);   color: var(--amber); }
+    .pill.r { border-color: var(--red);     color: var(--red); }
+
+    /* ── FOOTER ── */
+    footer {
+      text-align: center; padding: 40px 24px;
+      font-size: 11px; color: var(--muted);
+      border-top: 1px solid var(--border);
+    }
+    footer a { color: var(--accent); text-decoration: none; }
+  </style>
+</head>
+<body>
+
+<!-- ── NAV ── -->
+<nav>
+  <a class="nav-logo" href="index.html">⬡ Memory Control</a>
+  <div class="nav-links">
+    <a href="index.html">Recall Engine</a>
+    <a href="quantum-time.html">Time &amp; Quantum</a>
+    <a href="cosmic-time.html" class="active">Cosmic Time</a>
+  </div>
+</nav>
+
+<!-- ══════════════════════════════════
+     HERO — Full Cosmic Overview
+══════════════════════════════════ -->
+<section class="hero" id="top">
+  <canvas id="hero-canvas"></canvas>
+  <div class="hero-content">
+    <div class="eyebrow">Memory Control · Cosmic Time Framework</div>
+    <h1 class="hero-title">Solar Systems, Time Nodes<br>&amp; Gas Cloud Futures</h1>
+    <p class="hero-sub">
+      The past holds its form as crystallised orbital structures — nodes still broadcasting their frequency.
+      The future is a diffuse cloud of probability, waiting for focused thought to give it mass.
+    </p>
+    <div class="hero-legend">
+      <div class="legend-item"><div class="legend-dot" style="background:#00d4ff"></div>Past nodes — still vibrating</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#fff;box-shadow:0 0 8px #fff"></div>NOW</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#7c3aed"></div>Future gas clouds</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div>Gravitational wake</div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════
+     SECTION 1 — Multi-Actor Gravity Ripple
+══════════════════════════════════ -->
+<section class="section" id="gravity">
+  <div class="section-inner">
+    <div class="section-tag">01 / 04 — The Uninvolved Effect</div>
+    <h2 class="section-title">Multi-Actor Gravity: The History You Didn't Choose</h2>
+
+    <div class="thought-block">
+      <p>
+        Think of spacetime as an ocean. When Actor A and B collide or orbit each other, they don't just affect each other —
+        they send <strong>ripples across the entire ocean</strong>. Actor C, sitting quietly in a distant region, never agreed to
+        participate in A and B's interaction. But the ocean doesn't ask permission. The wake arrives anyway.
+      </p>
+      <p>
+        This is not just a physics abstraction — it is the mechanics of <em>inherited history</em>.
+        Every civilisation, every organism, every particle that exists today is being slightly nudged by the
+        gravitational echoes of events that happened billions of years ago, in interactions it had no part in.
+        <strong>Gravity is the universe's long memory.</strong> It doesn't forget. It carries every action
+        forward as a permanent dent in the fabric — a dent that keeps propagating outward at the speed of light,
+        forever.
+      </p>
+      <p>
+        Now extend this to consciousness. If your neural network is a "mass" generating a field — whether
+        electromagnetic, electrochemical, or something subtler — then <em>every mind in proximity leaves a wake
+        that moves through you</em>, whether you were part of the original event or not.
+        You carry other people's histories in your local geometry of thought.
+      </p>
+    </div>
+
+    <div class="pills">
+      <span class="pill v">3-Body Interference</span>
+      <span class="pill v">Uninvolved Actor C</span>
+      <span class="pill a">Retarded Gravity</span>
+      <span class="pill r">Chaotic Attractors</span>
+    </div>
+
+    <div class="viz-box">
+      <canvas id="c-gravity" height="340"></canvas>
+      <div class="viz-caption">
+        <em>Actors A &amp; B</em> interact heavily — their combined gravity well warps the grid.
+        <em>Actor C</em> is uninvolved but receives their wake. Watch C oscillate when the ripple arrives.
+        Time dilation rings show clocks ticking slower near heavy masses.
+      </div>
+    </div>
+
+    <div class="two-col">
+      <div class="callout v">
+        <strong>Why N≥3 has no closed solution:</strong>
+        With 3 bodies each pulling all others, the feedback loops become chaotic.
+        Small changes in starting position produce completely different long-term orbits.
+        This is why the solar system's fate beyond ~100 million years is fundamentally unpredictable —
+        it is sensitive to initial conditions at the quantum level.
+      </div>
+      <div class="callout a">
+        <strong>Time dilation as gravity's signature:</strong>
+        Clocks tick slower in stronger gravity fields. Actor A and B, locked in mutual orbit,
+        experience time differently than Actor C far away. From C's perspective, A and B are
+        "living slower." Their shared past is literally running at a different rate than C's present.
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════
+     SECTION 2 — World Line Nodes
+══════════════════════════════════ -->
+<section class="section" id="nodes">
+  <div class="section-inner">
+    <div class="section-tag">02 / 04 — Temporal Resonance</div>
+    <h2 class="section-title">World Line Nodes: The Past Is Still Broadcasting</h2>
+
+    <div class="thought-block v">
+      <p>
+        In physics, a <strong>world line</strong> is the 4-dimensional path an object traces through spacetime —
+        every position at every moment, drawn as a curve through space and time simultaneously.
+        But here's the part physics rarely emphasises: <em>that curve doesn't disappear</em>.
+        The gravitational, electromagnetic, and quantum signatures of every point on that line
+        are still propagating outward right now. The light from a star that exploded 10,000 years ago
+        is still travelling through space — you can look up tonight and receive a photon that left
+        before any human civilisation existed.
+      </p>
+      <p>
+        Your insight goes further: <strong>these are not just passive broadcasts — they are nodes you can tune to</strong>.
+        Just as a radio station broadcasts on a specific frequency, each event in the past "broadcasts"
+        on the frequency of the energy and pattern it encoded at that moment. Memory recall isn't retrieval
+        from a storage locker — it is <em>re-tuning your neural oscillator</em> to the frequency of a past node
+        and receiving its signal again. The gamma wave surge before death may be a last, full-spectrum sweep
+        across all frequencies simultaneously — every node contacted at once.
+      </p>
+      <p>
+        The nodes that are easiest to reach are the ones with the <strong>highest energy</strong> —
+        emotionally intense moments, repeated experiences, traumas, peak joys. These broadcast loudly.
+        Low-energy moments fade to background noise. This explains why you can't remember most Tuesdays
+        but vividly recall the day something extraordinary happened.
+      </p>
+    </div>
+
+    <div class="pills">
+      <span class="pill c">World Lines</span>
+      <span class="pill c">Frequency Tuning</span>
+      <span class="pill c">Still Broadcasting</span>
+      <span class="pill g">Resonance Recall</span>
+    </div>
+
+    <div class="viz-box">
+      <canvas id="c-worldline" height="300"></canvas>
+      <div class="viz-caption">
+        The <em>helix</em> is your world line through spacetime. Each glowing node is a high-energy past event, still broadcasting.
+        Watch the frequency scanner sweep — when it locks onto a node's frequency, that node sends out a wave.
+        <em>Click any node</em> to manually tune to it and catch its wave.
+      </div>
+    </div>
+
+    <div class="callout" style="margin-top:20px">
+      <strong>The catch-window problem:</strong>
+      Nodes don't broadcast at constant amplitude forever. Like a decaying oscillation, their signal amplitude
+      reduces over time — but never reaches zero (energy is conserved). The wave just gets harder to detect against
+      background noise. Deep meditation, hypnosis, and end-of-life states may reduce that noise floor enough
+      to pick up signals that are normally buried. This is the mechanism behind involuntary memory floods —
+      suddenly the noise drops and everything broadcasts at once.
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════
+     SECTION 3 — Gas Cloud Futures
+══════════════════════════════════ -->
+<section class="section" id="gascloud">
+  <div class="section-inner">
+    <div class="section-tag">03 / 04 — Probability Nebula</div>
+    <h2 class="section-title">The Future Is a Gas Cloud: Thought as Stellar Gravity</h2>
+
+    <div class="thought-block g">
+      <p>
+        Stars are born from gas clouds. A nebula — diffuse, cold, spread across light-years —
+        has no star in it yet. But introduce a gravitational perturbation: a nearby supernova shock wave,
+        a slight density fluctuation, a passing mass. Suddenly the gas begins to <strong>fall inward</strong>.
+        Regions of slightly higher density attract more gas. More mass → stronger gravity → faster accretion.
+        Within a few million years, a blazing star exists where there was nothing but fog.
+      </p>
+      <p>
+        <em>The future works the same way.</em> Before a decision is made, all outcomes exist as a
+        probability distribution — a quantum fog, spread across possibility-space.
+        When you <strong>think toward a specific future</strong>, you are introducing a gravitational perturbation
+        into that fog. The thought has energy. Energy has mass (E=mc²). Mass curves spacetime.
+        Repeated, focused thought is the equivalent of a density fluctuation in the nebula —
+        it starts pulling the surrounding probability fog inward toward a specific outcome.
+      </p>
+      <p>
+        This is why collective intention scales differently than individual intention.
+        One person thinking toward a future adds one small gravity well to the cloud.
+        A thousand people focused on the same outcome creates a <strong>gravitational cluster</strong> —
+        the probability cloud collapses much faster toward that attractor, like a massive star forming
+        instead of a small one. The future isn't chosen — it is <em>accreted</em>.
+      </p>
+    </div>
+
+    <div class="pills">
+      <span class="pill g">Probability Nebula</span>
+      <span class="pill g">Thought Accretion</span>
+      <span class="pill g">Wavefunction Collapse</span>
+      <span class="pill a">Collective Focus</span>
+    </div>
+
+    <div class="viz-box">
+      <canvas id="c-gascloud" height="360"></canvas>
+      <div class="viz-caption">
+        <em>Move your cursor over the cloud</em> — your "thought" acts as a gravity well, pulling probability particles toward it.
+        Hold still to let them accrete. Multiple strong focuses create competing attractors.
+        Released particles disperse back into the fog — unfocused futures return to superposition.
+      </div>
+    </div>
+
+    <div class="two-col" style="margin-top:20px">
+      <div class="callout g">
+        <strong>The observation threshold:</strong>
+        In quantum mechanics, observation collapses the wavefunction. In the nebula model,
+        "observation" is the moment enough mass has accreted that collapse becomes self-sustaining —
+        like nuclear ignition in a protostar. Before that threshold, the future is still reversible.
+        After it, the star lights up and its light is real.
+      </div>
+      <div class="callout a">
+        <strong>Why negative focus also works:</strong>
+        Fear is a gravity well too. Anxious, repeated thought about a feared future
+        creates just as strong a density perturbation in the probability fog as positive intention.
+        The gas doesn't distinguish between attractive and repulsive labels — only mass matters.
+        This is the mechanism behind self-fulfilling prophecy, viewed through physics.
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════
+     SECTION 4 — Quantum Time Slips
+══════════════════════════════════ -->
+<section class="section" id="slips">
+  <div class="section-inner">
+    <div class="section-tag">04 / 04 — Non-Linear Navigation</div>
+    <h2 class="section-title">Quantum Time Slips: Riding the Interference Between Actors</h2>
+
+    <div class="thought-block a">
+      <p>
+        Every actor in spacetime is broadcasting ripples — gravitational, electromagnetic, quantum.
+        Where those ripples from <em>different actors overlap</em>, you get interference patterns:
+        regions where the waves amplify each other (constructive interference) and regions where
+        they cancel (destructive interference). The crests of constructive interference are
+        <strong>natural connection points</strong> — nodes where multiple histories meet.
+      </p>
+      <p>
+        Here is the key insight: <em>you don't need to travel linearly through time to reach a past node</em>.
+        If you can identify the interference crest between Actor A's ripple and Actor B's ripple at
+        a specific past moment, you can arrive at that intersection point from any direction.
+        This is not time travel in the science-fiction sense — it is <strong>resonant navigation</strong>.
+        You tune to the combined frequency of two actors' overlapping histories and find yourself
+        receiving both signals simultaneously, as if you were present at their intersection.
+      </p>
+      <p>
+        In practice, this may be what deja-vu is: your consciousness accidentally aligning with
+        an interference crest from a past-actor overlap that mirrors your current experience closely enough
+        to trigger resonance. The feeling isn't memory — it's <em>simultaneous reception</em> of two
+        signals from different times that happen to share the same frequency at this moment.
+      </p>
+    </div>
+
+    <div class="pills">
+      <span class="pill a">Constructive Interference</span>
+      <span class="pill a">Resonant Navigation</span>
+      <span class="pill r">Déjà Vu Mechanism</span>
+      <span class="pill v">Non-Linear Time</span>
+    </div>
+
+    <div class="viz-box">
+      <canvas id="c-slips" height="320"></canvas>
+      <div class="viz-caption">
+        Three actors' ripple fields overlap. <em>Bright nodes</em> are constructive interference peaks —
+        the natural meeting points of multiple histories. The navigator (white dot) rides the crests,
+        bypassing the dead zones between them. <em>Click a bright node</em> to jump the navigator there.
+      </div>
+    </div>
+
+    <div class="callout v" style="margin-top:20px">
+      <strong>The testable prediction:</strong>
+      If this model holds, people with high memory recall accuracy should show more complex gamma-wave
+      interference patterns during recall — not just one frequency, but the overlapping signature of
+      multiple nodes broadcasting simultaneously. Conversely, memory disorders might correspond to
+      a flattened interference landscape — fewer constructive peaks to navigate toward.
+    </div>
+    <div class="callout a" style="margin-top:12px">
+      <strong>Where this connects to the death flash:</strong>
+      The gamma surge before death may be the moment all interference peaks amplify simultaneously —
+      every node that shared frequency with this consciousness resonates at once, constructive interference
+      stacking across the entire personal world line. Not a slow recall, but every channel open at once:
+      the full interference map lighting up in a single moment.
+    </div>
+  </div>
+</section>
+
+<footer>
+  <p>Memory Control ·
+    <a href="index.html">Recall Engine</a> ·
+    <a href="quantum-time.html">Time &amp; Quantum</a> ·
+    <a href="cosmic-time.html">Cosmic Time</a>
+  </p>
+</footer>
+
+<!-- ══════════════════════════════════════════════
+     ANIMATIONS
+══════════════════════════════════════════════ -->
+<script>
+'use strict';
+const TAU   = Math.PI * 2;
+const rand  = (a, b) => Math.random() * (b - a) + a;
+const lerp  = (a, b, t) => a + (b - a) * t;
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+function fitCanvas(c) {
+  const r = c.parentElement.getBoundingClientRect();
+  c.width = r.width;
+  return { w: c.width, h: c.height };
+}
+
+/* ════════════════════════════════════════════════
+   HERO — Multi-solar-system cosmic panorama
+════════════════════════════════════════════════ */
+(function heroAnim() {
+  const C = document.getElementById('hero-canvas');
+  const ctx = C.getContext('2d');
+  let W, H;
+
+  /* star field */
+  const STARS = [];
+  /* past solar systems */
+  const SYSTEMS = [
+    { frac: 0.10, age: 3.2, numPlanets: 3, orbitScale: 0.62 },
+    { frac: 0.24, age: 2.1, numPlanets: 4, orbitScale: 0.78 },
+    { frac: 0.38, age: 1.1, numPlanets: 3, orbitScale: 0.90 },
+  ];
+  /* future gas clouds */
+  const CLOUDS = [
+    { frac: 0.66, density: 0.28, particles: [] },
+    { frac: 0.84, density: 0.14, particles: [] },
+  ];
+
+  function buildStars() {
+    STARS.length = 0;
+    for (let i = 0; i < 260; i++) {
+      STARS.push({ x: rand(0, W), y: rand(0, H), r: rand(.4, 1.8),
+                   twinkle: rand(0, TAU), ts: rand(.01, .04) });
+    }
+  }
+
+  function buildClouds() {
+    CLOUDS.forEach(cl => {
+      cl.particles = [];
+      const cx = cl.frac * W, cy = H * 0.5;
+      const spread = W * 0.12;
+      for (let i = 0; i < 180; i++) {
+        const angle = rand(0, TAU), r = rand(0, spread);
+        cl.particles.push({
+          x: cx + Math.cos(angle) * r,
+          y: cy + Math.sin(angle) * r * 0.6,
+          vx: rand(-.1, .1), vy: rand(-.05, .05),
+          r: rand(.8, 2.8), o: rand(.1, cl.density + .1),
+          hue: Math.random() > .5 ? '124,58,237' : '100,40,200'
+        });
+      }
+    });
+  }
+
+  function init() {
+    const r = document.querySelector('.hero').getBoundingClientRect();
+    W = C.width = r.width; H = C.height = r.height;
+    buildStars(); buildClouds();
+  }
+
+  let t = 0;
+
+  function drawSolarSystem(cx, cy, sys, alpha) {
+    const s = Math.min(W, H) * 0.07 * sys.orbitScale;
+    /* central star */
+    const starGlow = ctx.createRadialGradient(cx, cy, 0, cx, cy, s * 1.2);
+    starGlow.addColorStop(0, `rgba(255,230,150,${alpha * .9})`);
+    starGlow.addColorStop(.4, `rgba(255,180,80,${alpha * .4})`);
+    starGlow.addColorStop(1, 'rgba(255,140,40,0)');
+    ctx.beginPath(); ctx.arc(cx, cy, s * 1.2, 0, TAU);
+    ctx.fillStyle = starGlow; ctx.fill();
+    ctx.beginPath(); ctx.arc(cx, cy, s * 0.22, 0, TAU);
+    ctx.fillStyle = `rgba(255,230,150,${alpha})`; ctx.fill();
+
+    /* orbits + planets */
+    for (let p = 0; p < sys.numPlanets; p++) {
+      const orbitR = s * (1.6 + p * 1.3);
+      const orbitAngle = t * (.008 - p * .002) + p * 1.4;
+      const tilt = 0.35 + p * 0.12;
+      /* orbit ring */
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, orbitR, orbitR * tilt, 0, 0, TAU);
+      ctx.strokeStyle = `rgba(0,212,255,${alpha * .15})`; ctx.lineWidth = .6; ctx.stroke();
+      /* planet (node) */
+      const px = cx + Math.cos(orbitAngle) * orbitR;
+      const py = cy + Math.sin(orbitAngle) * orbitR * tilt;
+      const pGlow = ctx.createRadialGradient(px, py, 0, px, py, 8);
+      pGlow.addColorStop(0, `rgba(0,212,255,${alpha * .8})`);
+      pGlow.addColorStop(1, 'rgba(0,212,255,0)');
+      ctx.beginPath(); ctx.arc(px, py, 8, 0, TAU); ctx.fillStyle = pGlow; ctx.fill();
+      ctx.beginPath(); ctx.arc(px, py, 2.5, 0, TAU);
+      ctx.fillStyle = `rgba(0,212,255,${alpha})`; ctx.fill();
+    }
+  }
+
+  function draw() {
+    ctx.fillStyle = 'rgba(3,7,13,.18)'; ctx.fillRect(0, 0, W, H);
+
+    /* stars */
+    STARS.forEach(s => {
+      const b = .4 + .6 * Math.sin(s.twinkle + t * s.ts);
+      ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, TAU);
+      ctx.fillStyle = `rgba(180,220,255,${b * .7})`; ctx.fill();
+    });
+
+    /* past solar systems */
+    SYSTEMS.forEach(sys => {
+      const cx = sys.frac * W, cy = H * 0.5;
+      const alpha = 0.5 + sys.age * 0.12;
+      drawSolarSystem(cx, cy, sys, Math.min(alpha, 1));
+      /* "past node" label */
+      ctx.fillStyle = `rgba(0,212,255,${Math.min(alpha * .7, .6)})`;
+      ctx.font = '9px monospace';
+      ctx.fillText(`−${sys.age.toFixed(1)}T`, cx - 14, cy + H * .18);
+    });
+
+    /* NOW marker */
+    const nx = W * 0.5, ny = H * 0.5;
+    const nowRing = ctx.createRadialGradient(nx, ny, 0, nx, ny, 44);
+    nowRing.addColorStop(0, 'rgba(255,255,255,.18)');
+    nowRing.addColorStop(.5, 'rgba(0,212,255,.08)');
+    nowRing.addColorStop(1, 'rgba(0,212,255,0)');
+    ctx.beginPath(); ctx.arc(nx, ny, 44, 0, TAU); ctx.fillStyle = nowRing; ctx.fill();
+    ctx.beginPath(); ctx.arc(nx, ny, 7, 0, TAU);
+    ctx.fillStyle = '#fff'; ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.8)'; ctx.font = 'bold 11px monospace';
+    ctx.fillText('NOW', nx - 14, ny - 18);
+
+    /* future gas clouds */
+    CLOUDS.forEach(cl => {
+      cl.particles.forEach(p => {
+        p.x += p.vx; p.y += p.vy;
+        const cx2 = cl.frac * W, cy2 = H * 0.5;
+        const dx = cx2 - p.x, dy = cy2 - p.y;
+        const d = Math.sqrt(dx * dx + dy * dy) + 1;
+        if (d > W * 0.13) { p.x = cx2 + rand(-W*.05,W*.05); p.y = cy2 + rand(-H*.08,H*.08); }
+        const twink = 0.4 + 0.6 * Math.sin(t * .02 + p.x * .05);
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, TAU);
+        ctx.fillStyle = `rgba(${p.hue},${p.o * twink})`; ctx.fill();
+      });
+      const cx2 = cl.frac * W, cy2 = H * 0.5;
+      ctx.fillStyle = 'rgba(124,58,237,.5)'; ctx.font = '9px monospace';
+      ctx.fillText(`+${cl.density < .2 ? '∞' : '?'}T`, cx2 - 12, cy2 + H * .18);
+    });
+
+    /* time axis */
+    const ay = H * 0.86;
+    ctx.strokeStyle = 'rgba(74,96,112,.3)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(W * .06, ay); ctx.lineTo(W * .94, ay); ctx.stroke();
+    ctx.fillStyle = 'rgba(74,96,112,.5)'; ctx.font = '9px monospace';
+    ctx.fillText('◀ PAST (crystallised nodes)', W * .07, ay + 14);
+    ctx.fillText('FUTURE (probability fog) ▶', W * .64, ay + 14);
+
+    t++;
+    requestAnimationFrame(draw);
+  }
+
+  init(); window.addEventListener('resize', init); draw();
+})();
+
+/* ════════════════════════════════════════════════
+   C-GRAVITY — 3-body, grid deformation, ripples
+════════════════════════════════════════════════ */
+(function gravityAnim() {
+  const C = document.getElementById('c-gravity');
+  const ctx = C.getContext('2d');
+  let W, H;
+  const actors = {
+    A: { x: 0, y: 0, vx: 1.0,  vy: 0.5,  mass: 2.8, r: 14, col: '0,212,255',   label: 'A' },
+    B: { x: 0, y: 0, vx: -0.8, vy: -0.6, mass: 2.2, r: 12, col: '0,212,255',   label: 'B' },
+    C: { x: 0, y: 0, vx: 0.15, vy: 0.1,  mass: 0.6, r: 7,  col: '16,185,129',  label: 'C' }
+  };
+  const waves = [];
+  let wt = 0;
+
+  function init() {
+    const d = fitCanvas(C); W = d.w; H = d.h;
+    actors.A.x = W * 0.32; actors.A.y = H * 0.45;
+    actors.B.x = W * 0.48; actors.B.y = H * 0.55;
+    actors.C.x = W * 0.82; actors.C.y = H * 0.50;
+  }
+
+  function gridDeform(gx, gy) {
+    let dx = 0, dy = 0;
+    Object.values(actors).forEach(a => {
+      const ex = gx - a.x, ey = gy - a.y;
+      const dist = Math.sqrt(ex * ex + ey * ey) + 1;
+      const str = a.mass * 700 / dist;
+      dx -= clamp(ex / dist * str, -24, 24);
+      dy -= clamp(ey / dist * str, -24, 24);
+    });
+    return { x: clamp(dx, -30, 30), y: clamp(dy, -30, 30) };
+  }
+
+  function drawGrid() {
+    const COLS = 24, ROWS = 14;
+    const gw = W / COLS, gh = H / ROWS;
+    ctx.lineWidth = 0.55;
+    for (let c = 0; c <= COLS; c++) {
+      ctx.beginPath();
+      for (let r = 0; r <= ROWS; r++) {
+        const d = gridDeform(c * gw, r * gh);
+        r === 0 ? ctx.moveTo(c*gw+d.x, r*gh+d.y) : ctx.lineTo(c*gw+d.x, r*gh+d.y);
+      }
+      ctx.strokeStyle = 'rgba(26,46,70,.7)'; ctx.stroke();
+    }
+    for (let r = 0; r <= ROWS; r++) {
+      ctx.beginPath();
+      for (let c = 0; c <= COLS; c++) {
+        const d = gridDeform(c * gw, r * gh);
+        c === 0 ? ctx.moveTo(c*gw+d.x, r*gh+d.y) : ctx.lineTo(c*gw+d.x, r*gh+d.y);
+      }
+      ctx.strokeStyle = 'rgba(26,46,70,.7)'; ctx.stroke();
+    }
+  }
+
+  function drawActor(a) {
+    const [r, g, b] = a.col.split(',').map(Number);
+    const gl = ctx.createRadialGradient(a.x, a.y, 0, a.x, a.y, a.r * 5);
+    gl.addColorStop(0, `rgba(${r},${g},${b},.35)`);
+    gl.addColorStop(1, `rgba(${r},${g},${b},0)`);
+    ctx.beginPath(); ctx.arc(a.x, a.y, a.r * 5, 0, TAU); ctx.fillStyle = gl; ctx.fill();
+    ctx.beginPath(); ctx.arc(a.x, a.y, a.r, 0, TAU);
+    ctx.fillStyle = `rgba(${r},${g},${b},1)`; ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 11px monospace';
+    ctx.fillText(a.label, a.x - 4, a.y - a.r - 7);
+    /* time dilation ring */
+    const dilRadius = a.r * 3.5;
+    ctx.beginPath(); ctx.arc(a.x, a.y, dilRadius, 0, TAU);
+    ctx.strokeStyle = `rgba(${r},${g},${b},.2)`; ctx.lineWidth = 1; ctx.stroke();
+    ctx.fillStyle = `rgba(${r},${g},${b},.5)`; ctx.font = '8px monospace';
+    ctx.fillText(`t×${(1 + a.mass * .12).toFixed(2)}`, a.x + dilRadius + 4, a.y + 3);
+  }
+
+  let frameN = 0;
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    drawGrid();
+
+    /* move A & B in a figure-8 around each other */
+    const cx = W * 0.40, cy = H * 0.50;
+    actors.A.x = cx + Math.cos(wt * .012) * W * 0.12;
+    actors.A.y = cy + Math.sin(wt * .012) * H * 0.18;
+    actors.B.x = cx - Math.cos(wt * .012) * W * 0.10;
+    actors.B.y = cy - Math.sin(wt * .012) * H * 0.14;
+    /* C drifts slowly */
+    actors.C.x += actors.C.vx; actors.C.y += actors.C.vy;
+    if (actors.C.x < 20 || actors.C.x > W-20) actors.C.vx *= -1;
+    if (actors.C.y < 20 || actors.C.y > H-20) actors.C.vy *= -1;
+
+    /* spawn ripple from A+B midpoint */
+    frameN++;
+    if (frameN % 70 === 0) {
+      waves.push({ x: (actors.A.x + actors.B.x) / 2,
+                   y: (actors.A.y + actors.B.y) / 2, r: 0, max: 420 });
+    }
+    /* draw + update waves */
+    for (let i = waves.length - 1; i >= 0; i--) {
+      const w = waves[i];
+      w.r += 1.6;
+      const al = 1 - w.r / w.max;
+      if (al <= 0) { waves.splice(i, 1); continue; }
+      ctx.beginPath(); ctx.arc(w.x, w.y, w.r, 0, TAU);
+      ctx.strokeStyle = `rgba(245,158,11,${al * .55})`; ctx.lineWidth = 1.2; ctx.stroke();
+      /* if wave reaches C, highlight C */
+      const dx = actors.C.x - w.x, dy = actors.C.y - w.y;
+      const dist = Math.sqrt(dx*dx+dy*dy);
+      if (Math.abs(dist - w.r) < 8) {
+        ctx.beginPath(); ctx.arc(actors.C.x, actors.C.y, 22, 0, TAU);
+        ctx.strokeStyle = 'rgba(245,158,11,.7)'; ctx.lineWidth = 2; ctx.stroke();
+        ctx.fillStyle = 'rgba(245,158,11,.8)'; ctx.font = 'bold 9px monospace';
+        ctx.fillText('WAKE ARRIVED', actors.C.x + 12, actors.C.y - 12);
+      }
+    }
+
+    Object.values(actors).forEach(drawActor);
+    ctx.fillStyle = 'rgba(74,96,112,.6)'; ctx.font = '10px monospace';
+    ctx.fillText('A+B interaction → wake propagates → uninvolved C is affected', 14, 18);
+
+    wt++;
+    requestAnimationFrame(draw);
+  }
+
+  init(); window.addEventListener('resize', init); draw();
+})();
+
+/* ════════════════════════════════════════════════
+   C-WORLDLINE — Helix with frequency-catchable nodes
+════════════════════════════════════════════════ */
+(function worldlineAnim() {
+  const C = document.getElementById('c-worldline');
+  const ctx = C.getContext('2d');
+  let W, H;
+  let scanX = 0;
+  let catchingNode = null;
+  let catchTimer = 0;
+
+  const NODE_FRACS = [0.08, 0.19, 0.31, 0.45, 0.57, 0.68, 0.79, 0.91];
+  const NODE_COLORS = ['0,212,255','0,212,255','124,58,237','0,212,255',
+                        '16,185,129','0,212,255','124,58,237','245,158,11'];
+  const NODE_LABELS = ['First memory','Encoded event','Emotional peak','Pattern lock',
+                        'Deep recall','Gamma surge','Life review','NOW'];
+
+  function init() { const d = fitCanvas(C); W = d.w; H = d.h; }
+
+  C.addEventListener('click', e => {
+    const rect = C.getBoundingClientRect();
+    const mx = (e.clientX - rect.left) * (C.width / rect.width);
+    const my = (e.clientY - rect.top)  * (C.height / rect.height);
+    NODE_FRACS.forEach((f, i) => {
+      const nx = f * W;
+      const ny = H * 0.5 + Math.sin(f * TAU * 3) * H * 0.18;
+      if (Math.hypot(mx - nx, my - ny) < 22) {
+        catchingNode = i; catchTimer = 80;
+      }
+    });
+  });
+
+  let t = 0;
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+
+    /* helix path */
+    ctx.beginPath();
+    for (let x = 0; x <= W; x += 2) {
+      const frac = x / W;
+      const y = H * 0.5 + Math.sin(frac * TAU * 3) * H * 0.18;
+      x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = 'rgba(0,212,255,.25)'; ctx.lineWidth = 1.5; ctx.stroke();
+
+    /* scanner line */
+    scanX = (scanX + 1.2) % W;
+    ctx.strokeStyle = 'rgba(245,158,11,.4)'; ctx.lineWidth = 1; ctx.setLineDash([3, 4]);
+    ctx.beginPath(); ctx.moveTo(scanX, 0); ctx.lineTo(scanX, H); ctx.stroke();
+    ctx.setLineDash([]);
+
+    /* nodes */
+    NODE_FRACS.forEach((f, i) => {
+      const nx = f * W;
+      const ny = H * 0.5 + Math.sin(f * TAU * 3) * H * 0.18;
+      const col = NODE_COLORS[i];
+      const isCatching = catchingNode === i && catchTimer > 0;
+      const isScanning = Math.abs(scanX - nx) < 14;
+      const gSize = isCatching ? 30 : isScanning ? 22 : 12;
+      const alpha = isCatching ? 1 : isScanning ? .85 : .65;
+
+      /* glow */
+      const gl = ctx.createRadialGradient(nx, ny, 0, nx, ny, gSize);
+      gl.addColorStop(0, `rgba(${col},.6)`); gl.addColorStop(1, `rgba(${col},0)`);
+      ctx.beginPath(); ctx.arc(nx, ny, gSize, 0, TAU); ctx.fillStyle = gl; ctx.fill();
+      /* dot */
+      ctx.beginPath(); ctx.arc(nx, ny, 5, 0, TAU);
+      ctx.fillStyle = `rgba(${col},${alpha})`; ctx.fill();
+
+      /* wave emit when scanning or catching */
+      if (isScanning || isCatching) {
+        const waveR = ((t * 2.5) % 80);
+        ctx.beginPath(); ctx.arc(nx, ny, waveR, 0, TAU);
+        ctx.strokeStyle = `rgba(${col},${1 - waveR / 80})`; ctx.lineWidth = 1; ctx.stroke();
+        ctx.fillStyle = `rgba(${col},.85)`; ctx.font = '9px monospace';
+        ctx.fillText(isCatching ? '⦿ CAUGHT' : '⦾ LOCKED', nx + 8, ny - 10);
+      }
+
+      /* label on hover/catch */
+      if (isCatching || i === NODE_FRACS.length - 1) {
+        ctx.fillStyle = `rgba(${col},.8)`; ctx.font = '9px monospace';
+        ctx.fillText(NODE_LABELS[i], nx - 20, ny + 20);
+      }
+    });
+
+    if (catchTimer > 0) catchTimer--;
+    if (catchTimer === 0 && catchingNode !== null) catchingNode = null;
+
+    /* axis labels */
+    ctx.fillStyle = 'rgba(74,96,112,.5)'; ctx.font = '9px monospace';
+    ctx.fillText('PAST ◀────────────────── World Line ──────────────────▶ NOW', 14, 20);
+    ctx.fillText('scanner frequency', scanX > W*.7 ? scanX - 100 : scanX + 6, H - 10);
+
+    t++;
+    requestAnimationFrame(draw);
+  }
+
+  init(); window.addEventListener('resize', init); draw();
+})();
+
+/* ════════════════════════════════════════════════
+   C-GASCLOUD — Interactive particle nebula
+════════════════════════════════════════════════ */
+(function gascloudAnim() {
+  const C = document.getElementById('c-gascloud');
+  const ctx = C.getContext('2d');
+  let W, H;
+  const PARTS = 420;
+  const parts = [];
+  let mouseX = -999, mouseY = -999, mouseActive = false;
+  let secondFocus = { x: 0, y: 0, active: false, timer: 0 };
+
+  function buildParticles() {
+    parts.length = 0;
+    const cx = W * .5, cy = H * .5;
+    for (let i = 0; i < PARTS; i++) {
+      const angle = rand(0, TAU), r = rand(0, Math.min(W, H) * .38);
+      parts.push({
+        x: cx + Math.cos(angle) * r,
+        y: cy + Math.sin(angle) * r * 0.55,
+        vx: rand(-.12, .12), vy: rand(-.06, .06),
+        r: rand(.8, 2.6),
+        hue: Math.random() > .45 ? '124,58,237' : Math.random() > .5 ? '80,30,180' : '160,80,255',
+        baseX: cx + Math.cos(angle) * r,
+        baseY: cy + Math.sin(angle) * r * 0.55,
+        brightness: 0
+      });
+    }
+  }
+
+  function init() {
+    const d = fitCanvas(C); W = d.w; H = d.h;
+    buildParticles();
+    secondFocus.x = W * .65; secondFocus.y = H * .38;
+  }
+
+  C.addEventListener('mousemove', e => {
+    const rect = C.getBoundingClientRect();
+    mouseX = (e.clientX - rect.left) * (C.width / rect.width);
+    mouseY = (e.clientY - rect.top)  * (C.height / rect.height);
+    mouseActive = true;
+  });
+  C.addEventListener('mouseleave', () => { mouseActive = false; });
+  C.addEventListener('touchmove', e => {
+    e.preventDefault();
+    const rect = C.getBoundingClientRect();
+    const t = e.touches[0];
+    mouseX = (t.clientX - rect.left) * (C.width / rect.width);
+    mouseY = (t.clientY - rect.top)  * (C.height / rect.height);
+    mouseActive = true;
+  }, { passive: false });
+
+  let ft = 0;
+  function draw() {
+    ctx.fillStyle = 'rgba(3,7,13,.18)'; ctx.fillRect(0, 0, W, H);
+
+    /* second focus pulse (AI actor) */
+    ft++;
+    secondFocus.timer = ft;
+    const sfPulse = 0.5 + 0.5 * Math.sin(ft * .025);
+    if (ft % 280 < 200) secondFocus.active = true; else secondFocus.active = false;
+
+    /* particle physics */
+    parts.forEach(p => {
+      /* random drift */
+      p.vx += rand(-.008, .008); p.vy += rand(-.004, .004);
+      p.vx = clamp(p.vx, -.3, .3); p.vy = clamp(p.vy, -.15, .15);
+
+      /* attraction to mouse (thought gravity) */
+      let totalGravity = 0;
+      if (mouseActive) {
+        const dx = mouseX - p.x, dy = mouseY - p.y;
+        const dist = Math.sqrt(dx*dx+dy*dy) + 1;
+        if (dist < 160) {
+          const force = Math.min(0.6 / dist, 0.04);
+          p.vx += dx * force; p.vy += dy * force;
+          totalGravity += (1 - dist / 160);
+        }
+      }
+
+      /* second focus (simulated other thinker) */
+      if (secondFocus.active) {
+        const dx = secondFocus.x - p.x, dy = secondFocus.y - p.y;
+        const dist = Math.sqrt(dx*dx+dy*dy) + 1;
+        if (dist < 120) {
+          const force = Math.min(0.4 / dist, 0.025);
+          p.vx += dx * force; p.vy += dy * force;
+          totalGravity += sfPulse * (1 - dist / 120) * .5;
+        }
+      }
+
+      /* gentle return to base if no focus */
+      if (!mouseActive && !secondFocus.active) {
+        p.vx += (p.baseX - p.x) * .0004;
+        p.vy += (p.baseY - p.y) * .0004;
+      }
+
+      p.brightness = lerp(p.brightness, totalGravity, 0.08);
+      p.x += p.vx; p.y += p.vy;
+
+      /* draw */
+      const bright = clamp(p.brightness, 0, 1);
+      const alpha = 0.08 + bright * 0.85 + rand(0, .05);
+      const rDraw = p.r + bright * 2.5;
+      ctx.beginPath(); ctx.arc(p.x, p.y, rDraw, 0, TAU);
+      ctx.fillStyle = `rgba(${p.hue},${alpha})`; ctx.fill();
+
+      /* condensation glow at high brightness */
+      if (bright > 0.45) {
+        const gl = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, rDraw * 3);
+        gl.addColorStop(0, `rgba(${p.hue},${bright * .4})`);
+        gl.addColorStop(1, `rgba(${p.hue},0)`);
+        ctx.beginPath(); ctx.arc(p.x, p.y, rDraw * 3, 0, TAU);
+        ctx.fillStyle = gl; ctx.fill();
+      }
+    });
+
+    /* mouse focus indicator */
+    if (mouseActive) {
+      ctx.beginPath(); ctx.arc(mouseX, mouseY, 28, 0, TAU);
+      ctx.strokeStyle = 'rgba(255,255,255,.25)'; ctx.lineWidth = 1; ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,.55)'; ctx.font = 'bold 10px monospace';
+      ctx.fillText('YOUR THOUGHT', mouseX + 32, mouseY - 4);
+      ctx.fillText('↓ gravity', mouseX + 32, mouseY + 10);
+    }
+
+    /* second focus indicator */
+    if (secondFocus.active) {
+      ctx.beginPath(); ctx.arc(secondFocus.x, secondFocus.y, 22 * sfPulse, 0, TAU);
+      ctx.strokeStyle = `rgba(245,158,11,${sfPulse * .5})`; ctx.lineWidth = 1.2; ctx.stroke();
+      ctx.fillStyle = 'rgba(245,158,11,.65)'; ctx.font = '9px monospace';
+      ctx.fillText('2nd actor focus', secondFocus.x + 26, secondFocus.y);
+    }
+
+    ctx.fillStyle = 'rgba(74,96,112,.55)'; ctx.font = '10px monospace';
+    ctx.fillText('Move cursor = focused thought collapsing the probability cloud', 14, 20);
+
+    requestAnimationFrame(draw);
+  }
+
+  init(); window.addEventListener('resize', init); draw();
+})();
+
+/* ════════════════════════════════════════════════
+   C-SLIPS — Multi-actor interference + navigator
+════════════════════════════════════════════════ */
+(function slipsAnim() {
+  const C = document.getElementById('c-slips');
+  const ctx = C.getContext('2d');
+  let W, H;
+
+  /* ripple sources */
+  let sources;
+  function initSources() {
+    sources = [
+      { x: W * .18, y: H * .45, col: '0,212,255',  label: 'Actor A', period: 60  },
+      { x: W * .50, y: H * .30, col: '124,58,237', label: 'Actor B', period: 80  },
+      { x: W * .78, y: H * .62, col: '16,185,129', label: 'Actor C', period: 100 },
+    ];
+  }
+
+  /* navigator */
+  const nav = { x: 0, y: 0, tx: 0, ty: 0 };
+  const jumpPoints = [];
+  let highlightNodes = [];
+
+  function init() {
+    const d = fitCanvas(C); W = d.w; H = d.h;
+    initSources();
+    nav.x = nav.tx = W * .5; nav.y = nav.ty = H * .5;
+  }
+
+  C.addEventListener('click', e => {
+    const rect = C.getBoundingClientRect();
+    const mx = (e.clientX - rect.left) * (C.width / rect.width);
+    const my = (e.clientY - rect.top)  * (C.height / rect.height);
+    /* jump to nearest bright node */
+    let best = null, bestBright = 0;
+    highlightNodes.forEach(n => {
+      const d = Math.hypot(mx - n.x, my - n.y);
+      if (d < 30 && n.bright > bestBright) { best = n; bestBright = n.bright; }
+    });
+    if (best) { nav.tx = best.x; nav.ty = best.y; }
+  });
+
+  let t = 0;
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+
+    /* sample interference brightness across a coarse grid to find nodes */
+    const GRID = 28;
+    const gw = W / GRID, gh = H / GRID;
+    highlightNodes = [];
+
+    /* draw interference heatmap */
+    for (let gx = 0; gx <= GRID; gx++) {
+      for (let gy = 0; gy <= GRID; gy++) {
+        const px = gx * gw, py = gy * gh;
+        let total = 0;
+        sources.forEach(s => {
+          const dist = Math.hypot(px - s.x, py - s.y);
+          const phase = (t / s.period) * TAU;
+          const wave = Math.sin(dist * .08 - phase) * Math.exp(-dist * .004);
+          total += wave;
+        });
+        const bright = clamp((total + sources.length) / (sources.length * 2), 0, 1);
+        if (bright > 0.72) {
+          ctx.fillStyle = `rgba(245,158,11,${(bright - .72) * 1.8})`;
+          ctx.fillRect(px - gw/2, py - gh/2, gw, gh);
+          highlightNodes.push({ x: px, y: py, bright });
+        } else if (bright > 0.55) {
+          ctx.fillStyle = `rgba(255,255,255,${(bright - .55) * .25})`;
+          ctx.fillRect(px - gw/2, py - gh/2, gw, gh);
+        }
+      }
+    }
+
+    /* draw ripple rings from each source */
+    sources.forEach(s => {
+      for (let ring = 0; ring < 6; ring++) {
+        const r = ((t / s.period * 60 + ring * 60) % 360);
+        const al = (1 - r / 360) * .45;
+        ctx.beginPath(); ctx.arc(s.x, s.y, r, 0, TAU);
+        ctx.strokeStyle = `rgba(${s.col},${al})`; ctx.lineWidth = 1; ctx.stroke();
+      }
+      /* source dot */
+      const gl = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, 18);
+      gl.addColorStop(0, `rgba(${s.col},.7)`); gl.addColorStop(1, `rgba(${s.col},0)`);
+      ctx.beginPath(); ctx.arc(s.x, s.y, 18, 0, TAU); ctx.fillStyle = gl; ctx.fill();
+      ctx.beginPath(); ctx.arc(s.x, s.y, 6, 0, TAU);
+      ctx.fillStyle = `rgba(${s.col},1)`; ctx.fill();
+      ctx.fillStyle = '#c8d8ea'; ctx.font = '10px monospace';
+      ctx.fillText(s.label, s.x + 10, s.y - 12);
+    });
+
+    /* bright node halos */
+    highlightNodes.forEach(n => {
+      if (n.bright > .78) {
+        ctx.beginPath(); ctx.arc(n.x, n.y, 10, 0, TAU);
+        ctx.strokeStyle = `rgba(245,158,11,${(n.bright - .78) * 4 * .7})`;
+        ctx.lineWidth = 1.5; ctx.stroke();
+      }
+    });
+
+    /* navigator movement */
+    nav.x = lerp(nav.x, nav.tx, 0.06);
+    nav.y = lerp(nav.y, nav.ty, 0.06);
+
+    /* navigator trail */
+    jumpPoints.push({ x: nav.x, y: nav.y });
+    if (jumpPoints.length > 40) jumpPoints.shift();
+    jumpPoints.forEach((p, i) => {
+      const a = i / jumpPoints.length;
+      ctx.beginPath(); ctx.arc(p.x, p.y, 2.5, 0, TAU);
+      ctx.fillStyle = `rgba(255,255,255,${a * .4})`; ctx.fill();
+    });
+
+    /* navigator dot */
+    const navGl = ctx.createRadialGradient(nav.x, nav.y, 0, nav.x, nav.y, 18);
+    navGl.addColorStop(0, 'rgba(255,255,255,.5)'); navGl.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.beginPath(); ctx.arc(nav.x, nav.y, 18, 0, TAU); ctx.fillStyle = navGl; ctx.fill();
+    ctx.beginPath(); ctx.arc(nav.x, nav.y, 5, 0, TAU); ctx.fillStyle = '#fff'; ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.7)'; ctx.font = 'bold 9px monospace';
+    ctx.fillText('YOU', nav.x + 8, nav.y - 8);
+
+    ctx.fillStyle = 'rgba(74,96,112,.55)'; ctx.font = '10px monospace';
+    ctx.fillText('Amber = constructive interference nodes. Click a node to jump the navigator.', 12, 18);
+
+    t++;
+    requestAnimationFrame(draw);
+  }
+
+  init(); window.addEventListener('resize', init); draw();
+})();
+</script>
+</body>
+</html>
