@@ -1,0 +1,990 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Time & Quantum Time — Memory Control</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:      #050a10;
+      --surface: #0b1523;
+      --border:  #1a2e46;
+      --accent:  #00d4ff;
+      --violet:  #7c3aed;
+      --green:   #10b981;
+      --amber:   #f59e0b;
+      --red:     #f43f5e;
+      --text:    #c8d8ea;
+      --muted:   #4a6070;
+      --font:    'Segoe UI', system-ui, sans-serif;
+      --mono:    'Courier New', monospace;
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      overflow-x: hidden;
+    }
+
+    /* ── NAV ── */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      background: rgba(5,10,16,.92);
+      border-bottom: 1px solid var(--border);
+      backdrop-filter: blur(10px);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 28px; height: 52px;
+    }
+    .nav-logo { font-size: 13px; font-weight: 700; color: var(--accent);
+                letter-spacing: .1em; text-transform: uppercase; text-decoration: none; }
+    .nav-links { display: flex; gap: 6px; }
+    .nav-links a {
+      font-size: 11px; letter-spacing: .08em; text-transform: uppercase;
+      padding: 5px 12px; border-radius: 6px; text-decoration: none;
+      color: var(--muted); border: 1px solid transparent;
+      transition: all .2s;
+    }
+    .nav-links a:hover, .nav-links a.active {
+      color: var(--accent); border-color: var(--accent);
+      background: rgba(0,212,255,.07);
+    }
+
+    /* ── HERO ── */
+    .hero {
+      min-height: 100vh; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 80px 24px 40px;
+      position: relative; overflow: hidden;
+    }
+    #hero-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+    .hero-content { position: relative; z-index: 2; text-align: center; max-width: 760px; }
+    .hero-eyebrow { font-size: 10px; letter-spacing: .22em; text-transform: uppercase;
+                    color: var(--accent); margin-bottom: 16px; }
+    .hero-title { font-size: clamp(32px, 6vw, 58px); font-weight: 800; line-height: 1.1;
+                  background: linear-gradient(135deg,#fff 30%,var(--accent));
+                  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+                  margin-bottom: 18px; }
+    .hero-sub { font-size: 15px; color: var(--muted); line-height: 1.7; max-width: 560px; margin: 0 auto 32px; }
+    .scroll-hint { font-size: 11px; color: var(--muted); letter-spacing: .1em;
+                   animation: bounce 2s ease-in-out infinite; }
+    @keyframes bounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(6px)} }
+
+    /* ── SECTION WRAPPER ── */
+    .section {
+      min-height: 100vh; display: flex; flex-direction: column;
+      align-items: center; padding: 100px 24px 60px;
+      border-top: 1px solid var(--border); position: relative;
+    }
+    .section-inner { width: 100%; max-width: 1100px; }
+    .section-tag { font-size: 9px; letter-spacing: .2em; text-transform: uppercase;
+                   color: var(--muted); margin-bottom: 8px; }
+    .section-title { font-size: clamp(22px, 4vw, 38px); font-weight: 700;
+                     color: #fff; margin-bottom: 10px; line-height: 1.2; }
+    .section-sub { font-size: 14px; color: var(--muted); line-height: 1.75;
+                   max-width: 680px; margin-bottom: 32px; }
+    .section-sub strong { color: var(--text); }
+
+    /* ── VIZ BOX ── */
+    .viz-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+      position: relative;
+    }
+    .viz-box canvas { display: block; width: 100%; }
+    .viz-caption {
+      padding: 14px 20px;
+      font-size: 11px; color: var(--muted); line-height: 1.6;
+      border-top: 1px solid var(--border);
+      font-family: var(--mono);
+    }
+    .viz-caption em { color: var(--accent); font-style: normal; }
+
+    /* ── TWO COLUMN ── */
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    @media (max-width: 780px) { .two-col { grid-template-columns: 1fr; } }
+
+    /* ── CALLOUT ── */
+    .callout {
+      border-left: 3px solid var(--accent);
+      background: rgba(0,212,255,.05);
+      border-radius: 0 8px 8px 0;
+      padding: 14px 18px; margin: 20px 0;
+      font-size: 13px; color: var(--text); line-height: 1.7;
+    }
+    .callout.violet { border-color: var(--violet); background: rgba(124,58,237,.05); }
+    .callout.amber  { border-color: var(--amber);  background: rgba(245,158,11,.05); }
+    .callout.green  { border-color: var(--green);  background: rgba(16,185,129,.05); }
+    .callout strong { color: var(--accent); }
+    .callout.violet strong { color: var(--violet); }
+    .callout.amber  strong { color: var(--amber); }
+    .callout.green  strong { color: var(--green); }
+
+    /* ── STEP LIST ── */
+    .step-list { display: flex; flex-direction: column; gap: 12px; margin: 20px 0; }
+    .step {
+      display: flex; gap: 14px; align-items: flex-start;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; padding: 14px 16px;
+    }
+    .step-num {
+      min-width: 28px; height: 28px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 700;
+    }
+    .step-num.c { background: rgba(0,212,255,.15);  color: var(--accent); }
+    .step-num.v { background: rgba(124,58,237,.15); color: var(--violet); }
+    .step-num.g { background: rgba(16,185,129,.15); color: var(--green); }
+    .step-num.a { background: rgba(245,158,11,.15); color: var(--amber); }
+    .step-body p { font-size: 13px; color: var(--text); line-height: 1.65; }
+    .step-body strong { color: #fff; }
+
+    /* ── BADGE ROW ── */
+    .badge-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 24px; }
+    .badge { font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+             padding: 4px 12px; border-radius: 20px; border: 1px solid; }
+    .badge.c { border-color: var(--accent);  color: var(--accent); }
+    .badge.v { border-color: var(--violet);  color: var(--violet); }
+    .badge.g { border-color: var(--green);   color: var(--green); }
+    .badge.a { border-color: var(--amber);   color: var(--amber); }
+    .badge.r { border-color: var(--red);     color: var(--red); }
+
+    /* ── FOOTER ── */
+    footer {
+      text-align: center; padding: 40px 24px;
+      font-size: 11px; color: var(--muted);
+      border-top: 1px solid var(--border);
+    }
+    footer a { color: var(--accent); text-decoration: none; }
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <a class="nav-logo" href="index.html">⬡ Memory Control</a>
+  <div class="nav-links">
+    <a href="index.html">Recall Engine</a>
+    <a href="quantum-time.html" class="active">Time &amp; Quantum</a>
+    <a href="cosmic-time.html">Cosmic Time</a>
+  </div>
+</nav>
+
+<!-- ══ HERO ══ -->
+<section class="hero" id="top">
+  <canvas id="hero-canvas"></canvas>
+  <div class="hero-content">
+    <div class="hero-eyebrow">Memory Control · Theoretical Framework</div>
+    <h1 class="hero-title">Time, Quantum Time &amp; Multi-Actor Spacetime</h1>
+    <p class="hero-sub">
+      How classical time becomes radically complicated the moment a second actor enters 3D space —
+      curving gravity fields, propagating waves, and collapsing quantum futures into a single past.
+    </p>
+    <div class="scroll-hint">▼ scroll to explore</div>
+  </div>
+</section>
+
+<!-- ══ SECTION 1: Classical Time ══ -->
+<section class="section" id="classical">
+  <div class="section-inner">
+    <div class="section-tag">01 / 05 — Foundation</div>
+    <h2 class="section-title">Classical Time: One Actor, One Arrow</h2>
+    <p class="section-sub">
+      In the simplest picture, time is a single arrow — past on the left, future on the right.
+      A lone actor moves along it linearly. <strong>No other mass exists</strong>, so no gravity, no curvature, no interference.
+      This is the Newtonian baseline: absolute, uniform, universal.
+    </p>
+    <div class="badge-row">
+      <span class="badge c">Linear</span>
+      <span class="badge c">Absolute</span>
+      <span class="badge c">Single Actor</span>
+      <span class="badge c">No Curvature</span>
+    </div>
+    <div class="viz-box">
+      <canvas id="c1" height="220"></canvas>
+      <div class="viz-caption">
+        <em>Actor A</em> moves at constant velocity along a flat time axis.
+        No other mass → spacetime is perfectly flat → t ticks identically everywhere.
+      </div>
+    </div>
+    <div class="callout" style="margin-top:24px">
+      <strong>Key insight:</strong> Classical time only works cleanly with a single observer in flat space.
+      The instant you introduce a second mass, the problem becomes fundamentally different.
+    </div>
+  </div>
+</section>
+
+<!-- ══ SECTION 2: Multi-Actor 3D Spacetime ══ -->
+<section class="section" id="multiactor">
+  <div class="section-inner">
+    <div class="section-tag">02 / 05 — Complexity Begins</div>
+    <h2 class="section-title">Two Actors in 3D — Gravity Neither Planned</h2>
+    <p class="section-sub">
+      Add a second mass and spacetime curves around <em>both</em> of them — even if they never directly interact.
+      Actor A's motion creates a gravitational ripple. Actor B sits in a different region of the grid,
+      uninvolved in A's decision to move, yet <strong>the geometry it occupies warps</strong> because of A.
+    </p>
+    <div class="badge-row">
+      <span class="badge v">2 Masses</span>
+      <span class="badge v">Curved Grid</span>
+      <span class="badge v">Propagating Ripple</span>
+      <span class="badge a">Time Dilation</span>
+    </div>
+    <div class="viz-box">
+      <canvas id="c2" height="320"></canvas>
+      <div class="viz-caption">
+        Watch the spacetime grid bend around each mass.
+        When <em>Actor A</em> accelerates, a ripple (gravitational wave) travels outward at c —
+        <em>Actor B</em> doesn't "know" yet until the wave arrives.
+      </div>
+    </div>
+    <div class="callout violet" style="margin-top:24px">
+      <strong>Why this gets complicated fast:</strong>
+      Each mass curves space for the other. The curved path each follows
+      changes their relative velocity → their clocks tick at different rates → their "now" slices diverge.
+      Two actors, infinite possible configurations. Add a third and the equations have no closed-form solution.
+    </div>
+    <div class="step-list" style="margin-top:24px">
+      <div class="step">
+        <div class="step-num v">1</div>
+        <div class="step-body"><p><strong>A moves.</strong> Its mass dents the spacetime grid around it, changing the local geometry.</p></div>
+      </div>
+      <div class="step">
+        <div class="step-num v">2</div>
+        <div class="step-body"><p><strong>Ripple propagates.</strong> The dent radiates outward at the speed of light — a gravitational wave.</p></div>
+      </div>
+      <div class="step">
+        <div class="step-num v">3</div>
+        <div class="step-body"><p><strong>B is uninvolved — yet affected.</strong> When the wave reaches B, its local spacetime geometry changes. B was not part of A's action, but cannot escape the consequence.</p></div>
+      </div>
+      <div class="step">
+        <div class="step-num a">4</div>
+        <div class="step-body"><p><strong>Time lag = distance/c.</strong> B experiences A's action as if it happened in A's past — but from B's frame, it is still "arriving now." The two actors do not share the same "present."</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ SECTION 3: Gravity Coupling Detail ══ -->
+<section class="section" id="coupling">
+  <div class="section-inner">
+    <div class="section-tag">03 / 05 — Mechanism</div>
+    <h2 class="section-title">Gravitational Coupling: The Uninvited Effect</h2>
+    <p class="section-sub">
+      This is the core of "how it gets really complicated fast." Each additional actor adds a
+      coupling term to every other actor. With N bodies, there are N(N−1)/2 coupling pairs —
+      growing quadratically. And each coupling includes a <strong>light-travel-time delay</strong>,
+      meaning the system is never in a single coherent "now."
+    </p>
+    <div class="badge-row">
+      <span class="badge a">N-Body Problem</span>
+      <span class="badge a">Light-Delay Coupling</span>
+      <span class="badge r">No Closed Form N≥3</span>
+      <span class="badge v">Retarded Potentials</span>
+    </div>
+    <div class="two-col">
+      <div class="viz-box">
+        <canvas id="c3a" height="260"></canvas>
+        <div class="viz-caption">
+          <em>Coupling count vs. actors:</em> 2 actors = 1 pair.
+          3 actors = 3 pairs. 10 actors = 45 pairs. Each pair has its own delay and phase.
+        </div>
+      </div>
+      <div class="viz-box">
+        <canvas id="c3b" height="260"></canvas>
+        <div class="viz-caption">
+          <em>Retarded potential:</em> B's experience of A's gravity uses A's position
+          at the <em>retarded time</em> — where A was when the wave left, not where A is now.
+        </div>
+      </div>
+    </div>
+    <div class="callout amber" style="margin-top:24px">
+      <strong>Memory relevance:</strong>
+      If memories are stored or retrieved via field interactions (whatever the medium),
+      the same coupling problem applies — each "stored packet" interacts with every other
+      with a propagation delay. The brain's recall wave would arrive at different packets
+      at different times, explaining why memory replay is compressed, non-linear, and partial.
+    </div>
+  </div>
+</section>
+
+<!-- ══ SECTION 4: Quantum Time ══ -->
+<section class="section" id="quantum">
+  <div class="section-inner">
+    <div class="section-tag">04 / 05 — Quantum Regime</div>
+    <h2 class="section-title">Quantum Time: Superposition, Branching &amp; Collapse</h2>
+    <p class="section-sub">
+      In quantum mechanics, time itself is not an operator — it is a parameter.
+      But quantum <em>paths</em> through time are all simultaneously taken (Feynman path integrals).
+      The actor doesn't travel one route — it travels <strong>all routes at once</strong>,
+      weighted by probability amplitude. Observation collapses this into a single classical history.
+    </p>
+    <div class="badge-row">
+      <span class="badge g">Superposition</span>
+      <span class="badge g">Path Integrals</span>
+      <span class="badge g">Wavefunction Collapse</span>
+      <span class="badge g">Non-local Correlations</span>
+    </div>
+    <div class="viz-box">
+      <canvas id="c4" height="300"></canvas>
+      <div class="viz-caption">
+        All quantum paths from source to detector exist simultaneously (green/violet threads).
+        At the moment of observation, one path is selected — the others never "happen."
+        This is the quantum equivalent of the "boiling fog of future thoughts" collapsing into a single outcome.
+      </div>
+    </div>
+    <div class="two-col" style="margin-top:20px">
+      <div class="callout green">
+        <strong>Quantum ↔ classical boundary:</strong>
+        Large objects decohere quickly — quantum superposition collapses into classical single-path behaviour
+        in femtoseconds for anything brain-scale or larger, unless isolated at near-absolute-zero.
+      </div>
+      <div class="callout green">
+        <strong>Entanglement across time:</strong>
+        Two entangled particles share a quantum state non-locally — measuring one instantly constrains the other
+        regardless of distance. This is a genuine non-classical correlation, but it cannot transmit information faster than c.
+      </div>
+    </div>
+    <div class="step-list" style="margin-top:8px">
+      <div class="step">
+        <div class="step-num g">A</div>
+        <div class="step-body"><p><strong>Quantum particle leaves source.</strong> Its wavefunction spreads in all directions simultaneously — it is in superposition of all possible paths to the future.</p></div>
+      </div>
+      <div class="step">
+        <div class="step-num g">B</div>
+        <div class="step-body"><p><strong>Two (or more) actors entangled.</strong> Their wavefunctions are correlated — A's state is not independent of B's, even across space. This is the "non-local" part that seems to defy ordinary time.</p></div>
+      </div>
+      <div class="step">
+        <div class="step-num g">C</div>
+        <div class="step-body"><p><strong>Observation / decoherence.</strong> Contact with the environment forces a single classical outcome. The "branching tree" of possible futures collapses to one branch — this is what we experience as "the present."</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ SECTION 5: Spiral Galaxy — Time Arms ══ -->
+<section class="section" id="galaxy">
+  <div class="section-inner">
+    <div class="section-tag">05 / 05 — The Model</div>
+    <h2 class="section-title">Spiral Galaxy: Past &amp; Future as Inertial Arms</h2>
+    <p class="section-sub">
+      A spiral galaxy's arms are not fixed structures — they are <strong>density waves</strong>,
+      patterns left by the inertia of stars that have already passed through and stars yet to arrive.
+      If time behaves similarly, the past arm is the compressed wake of inertia already expended,
+      and the future arm is the probability-dense fog of trajectories being focused into existence.
+    </p>
+    <div class="badge-row">
+      <span class="badge c">Density Wave</span>
+      <span class="badge v">Inertial Wake</span>
+      <span class="badge g">Probability Fog</span>
+      <span class="badge a">Focused Future</span>
+    </div>
+    <div class="viz-box">
+      <canvas id="c5" height="360"></canvas>
+      <div class="viz-caption">
+        Centre: the present moment. <em>Trailing arm (blue):</em> past — crystallised, determined events.
+        <em>Leading arm (violet):</em> future — a diffuse probability field, becoming denser (more determined) as attention/energy focuses it.
+        Stars = memory events. Density = recall strength.
+      </div>
+    </div>
+    <div class="callout" style="margin-top:24px">
+      <strong>Synthesis:</strong>
+      Classical time → one arm, one actor. Add a second mass → the arms interact, coupling their wakes.
+      Quantum time → each arm is a superposition until observed. The spiral is the full picture:
+      inertia trailing behind, focused probability leading ahead, and the present a razor-thin rotation point between them.
+    </div>
+    <div class="callout amber" style="margin-top:12px">
+      <strong>Memory connection:</strong>
+      Memories are the density-wave pattern left in the past arm — highest density where recall is strongest.
+      End-of-life gamma surges may be a final "full rotation" where the present sweeps back through the entire past arm at once.
+    </div>
+  </div>
+</section>
+
+<footer>
+  <p>Memory Control · <a href="index.html">← Back to Neural Recall Engine</a></p>
+</footer>
+
+<!-- ══════════════════════════════════════════════════════════
+     ANIMATIONS
+══════════════════════════════════════════════════════════ -->
+<script>
+const rand  = (a,b) => Math.random()*(b-a)+a;
+const lerp  = (a,b,t) => a+(b-a)*t;
+const clamp = (v,a,b) => Math.max(a,Math.min(b,v));
+const TAU   = Math.PI*2;
+
+/* ── resize helper ── */
+function fit(canvas) {
+  const r = canvas.parentElement.getBoundingClientRect();
+  canvas.width = r.width;
+  return { w: canvas.width, h: canvas.height };
+}
+
+/* ════════════════════════════════════
+   HERO — starfield + time arrow
+════════════════════════════════════ */
+(function heroAnim(){
+  const C = document.getElementById('hero-canvas');
+  let W, H;
+  const stars = [];
+  function init(){
+    const r = C.getBoundingClientRect();
+    W = C.width = r.width; H = C.height = r.height;
+    stars.length = 0;
+    for(let i=0;i<180;i++) stars.push({
+      x:rand(0,W), y:rand(0,H),
+      r:rand(.5,2.5), v:rand(.05,.25),
+      o:rand(.2,.9)
+    });
+  }
+  const ctx = C.getContext('2d');
+  let t=0;
+  function draw(){
+    ctx.fillStyle='rgba(5,10,16,.25)'; ctx.fillRect(0,0,W,H);
+    stars.forEach(s=>{
+      s.x -= s.v;
+      if(s.x<0) s.x=W;
+      ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,TAU);
+      ctx.fillStyle=`rgba(0,212,255,${s.o*(0.5+0.5*Math.sin(t*.02+s.y))})`;
+      ctx.fill();
+    });
+    // floating time lines
+    for(let i=0;i<5;i++){
+      const y = H*.2 + i*(H*.16);
+      const phase = t*.015+i*1.1;
+      ctx.beginPath();
+      for(let x=0;x<=W;x+=4){
+        const v = H*.008*Math.sin(x*.012+phase);
+        x===0 ? ctx.moveTo(x,y+v) : ctx.lineTo(x,y+v);
+      }
+      ctx.strokeStyle=`rgba(0,212,255,${.04+i*.012})`;
+      ctx.lineWidth=1; ctx.stroke();
+    }
+    t++;
+    requestAnimationFrame(draw);
+  }
+  init(); window.addEventListener('resize',init); draw();
+})();
+
+/* ════════════════════════════════════
+   C1 — Classical time, single actor
+════════════════════════════════════ */
+(function c1(){
+  const C=document.getElementById('c1');
+  const ctx=C.getContext('2d');
+  let W,H,ax=0;
+  function init(){ const d=fit(C); W=d.w; H=d.h; }
+  let t=0;
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    // grid
+    ctx.strokeStyle='rgba(26,46,70,.5)'; ctx.lineWidth=.5;
+    for(let x=0;x<W;x+=50){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+    for(let y=0;y<H;y+=50){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+    // time axis
+    const ay=H*.6;
+    ctx.strokeStyle='rgba(0,212,255,.5)'; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.moveTo(30,ay); ctx.lineTo(W-30,ay); ctx.stroke();
+    // arrow head
+    ctx.fillStyle='rgba(0,212,255,.8)';
+    ctx.beginPath(); ctx.moveTo(W-30,ay); ctx.lineTo(W-42,ay-6); ctx.lineTo(W-42,ay+6); ctx.fill();
+    // label
+    ctx.fillStyle='rgba(0,212,255,.5)'; ctx.font='11px monospace';
+    ctx.fillText('PAST',36,ay-10); ctx.fillText('FUTURE',W-86,ay-10);
+    ctx.fillStyle='rgba(74,96,112,1)'; ctx.fillText('t →',W/2-12,ay-12);
+    // tick marks
+    for(let i=1;i<=9;i++){
+      const x=30+(W-60)*i/10;
+      ctx.strokeStyle='rgba(74,96,112,.6)'; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.moveTo(x,ay-5); ctx.lineTo(x,ay+5); ctx.stroke();
+      ctx.fillStyle='rgba(74,96,112,.7)'; ctx.font='9px monospace';
+      ctx.fillText(`t${i}`,x-6,ay+17);
+    }
+    // Actor A
+    ax = (ax+1)%(W-60); if(ax===0) ax=0;
+    const actX = 30 + ax;
+    // trail
+    const grad=ctx.createLinearGradient(actX-60,0,actX,0);
+    grad.addColorStop(0,'rgba(0,212,255,0)'); grad.addColorStop(1,'rgba(0,212,255,.3)');
+    ctx.fillStyle=grad; ctx.fillRect(actX-60,ay-2,60,4);
+    // dot
+    ctx.beginPath(); ctx.arc(actX,ay,9,0,TAU);
+    ctx.fillStyle='rgba(0,212,255,.15)'; ctx.fill();
+    ctx.beginPath(); ctx.arc(actX,ay,5,0,TAU);
+    ctx.fillStyle='#00d4ff'; ctx.fill();
+    // label A
+    ctx.fillStyle='#c8d8ea'; ctx.font='bold 11px monospace';
+    ctx.fillText('A',actX-4,ay-16);
+    // velocity vector
+    ctx.strokeStyle='rgba(0,212,255,.7)'; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.moveTo(actX,ay); ctx.lineTo(actX+22,ay); ctx.stroke();
+    ctx.fillStyle='rgba(0,212,255,.7)';
+    ctx.beginPath(); ctx.moveTo(actX+22,ay); ctx.lineTo(actX+16,ay-4); ctx.lineTo(actX+16,ay+4); ctx.fill();
+    // "FLAT SPACETIME" label
+    ctx.fillStyle='rgba(74,96,112,.6)'; ctx.font='10px monospace';
+    ctx.fillText('FLAT SPACETIME — no curvature, no other mass', 30, 24);
+    t++;
+    requestAnimationFrame(draw);
+  }
+  init(); window.addEventListener('resize',init); draw();
+})();
+
+/* ════════════════════════════════════
+   C2 — Two actors, grid deformation
+════════════════════════════════════ */
+(function c2(){
+  const C=document.getElementById('c2');
+  const ctx=C.getContext('2d');
+  let W,H;
+  function init(){const d=fit(C);W=d.w;H=d.h;}
+  let t=0;
+  // actors
+  const A={x:0,y:0,r:14,mass:2.2,vx:.5,vy:.18};
+  const B={x:0,y:0,r:10,mass:1.4,vx:-.3,vy:.25};
+  // wave rings
+  const waves=[];
+  function spawnWave(x,y,c){ waves.push({x,y,r:0,max:160,c,alpha:1}); }
+  function init2(){ A.x=W*.3;A.y=H*.42; B.x=W*.7;B.y=H*.55; }
+
+  function drawGrid(){
+    const COLS=22, ROWS=14;
+    const gw=W/COLS, gh=H/ROWS;
+    ctx.lineWidth=.6;
+    // vertical lines
+    for(let c=0;c<=COLS;c++){
+      ctx.beginPath();
+      for(let r=0;r<=ROWS;r++){
+        const gx=c*gw, gy=r*gh;
+        const def=gridDeform(gx,gy);
+        r===0?ctx.moveTo(gx+def.x,gy+def.y):ctx.lineTo(gx+def.x,gy+def.y);
+      }
+      ctx.strokeStyle='rgba(26,46,70,.7)'; ctx.stroke();
+    }
+    // horizontal lines
+    for(let r=0;r<=ROWS;r++){
+      ctx.beginPath();
+      for(let c=0;c<=COLS;c++){
+        const gx=c*gw, gy=r*gh;
+        const def=gridDeform(gx,gy);
+        c===0?ctx.moveTo(gx+def.x,gy+def.y):ctx.lineTo(gx+def.x,gy+def.y);
+      }
+      ctx.strokeStyle='rgba(26,46,70,.7)'; ctx.stroke();
+    }
+  }
+  function gridDeform(gx,gy){
+    let dx=0,dy=0;
+    [A,B].forEach(actor=>{
+      const ex=gx-actor.x, ey=gy-actor.y;
+      const dist=Math.sqrt(ex*ex+ey*ey)+1;
+      const strength=actor.mass*900/dist;
+      const maxDef=22;
+      dx-=clamp(ex/dist*strength,-maxDef,maxDef);
+      dy-=clamp(ey/dist*strength,-maxDef,maxDef);
+    });
+    return {x:clamp(dx,-30,30),y:clamp(dy,-30,30)};
+  }
+  function drawActor(actor,color,label){
+    // glow
+    const g=ctx.createRadialGradient(actor.x,actor.y,0,actor.x,actor.y,actor.r*4);
+    g.addColorStop(0,color.replace('1)','.4)')); g.addColorStop(1,color.replace('1)','0)'));
+    ctx.beginPath();ctx.arc(actor.x,actor.y,actor.r*4,0,TAU);
+    ctx.fillStyle=g;ctx.fill();
+    // core
+    ctx.beginPath();ctx.arc(actor.x,actor.y,actor.r,0,TAU);
+    ctx.fillStyle=color;ctx.fill();
+    // label
+    ctx.fillStyle='#fff';ctx.font='bold 12px monospace';
+    ctx.fillText(label,actor.x-5,actor.y-actor.r-8);
+  }
+
+  let frameCount=0;
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    drawGrid();
+
+    // move actors (bounce)
+    A.x+=A.vx; A.y+=A.vy;
+    if(A.x<A.r||A.x>W-A.r) A.vx*=-1;
+    if(A.y<A.r||A.y>H-A.r) A.vy*=-1;
+    B.x+=B.vx; B.y+=B.vy;
+    if(B.x<B.r||B.x>W-B.r) B.vx*=-1;
+    if(B.y<B.r||B.y>H-B.r) B.vy*=-1;
+
+    // spawn wave from A every 80 frames
+    frameCount++;
+    if(frameCount%80===0) spawnWave(A.x,A.y,'rgba(0,212,255,');
+    if(frameCount%110===40) spawnWave(B.x,B.y,'rgba(124,58,237,');
+
+    // draw waves
+    waves.forEach((w,i)=>{
+      w.r+=1.5; w.alpha=1-w.r/w.max;
+      if(w.alpha<=0){waves.splice(i,1);return;}
+      ctx.beginPath();ctx.arc(w.x,w.y,w.r,0,TAU);
+      ctx.strokeStyle=w.c+w.alpha*.7+')'; ctx.lineWidth=1.2; ctx.stroke();
+    });
+
+    // coupling line
+    const dx=B.x-A.x,dy=B.y-A.y;
+    const dist=Math.sqrt(dx*dx+dy*dy);
+    ctx.save();
+    ctx.setLineDash([4,6]);
+    ctx.strokeStyle=`rgba(245,158,11,${clamp(.5-dist/W,.05,.4)})`;
+    ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(A.x,A.y);ctx.lineTo(B.x,B.y);ctx.stroke();
+    ctx.restore();
+
+    drawActor(A,'rgba(0,212,255,1)','A');
+    drawActor(B,'rgba(124,58,237,1)','B');
+
+    // labels
+    ctx.fillStyle='rgba(74,96,112,.7)'; ctx.font='10px monospace';
+    ctx.fillText('CURVED SPACETIME — each mass warps the grid for the other',20,18);
+    const mid={x:(A.x+B.x)/2,y:(A.y+B.y)/2};
+    ctx.fillStyle='rgba(245,158,11,.6)'; ctx.font='9px monospace';
+    ctx.fillText(`coupling Δ=${Math.round(dist)}px`,mid.x-30,mid.y-10);
+
+    t++;
+    requestAnimationFrame(draw);
+  }
+  init();init2();window.addEventListener('resize',()=>{init();init2();});draw();
+})();
+
+/* ════════════════════════════════════
+   C3a — Coupling count bar chart
+════════════════════════════════════ */
+(function c3a(){
+  const C=document.getElementById('c3a');
+  const ctx=C.getContext('2d');
+  let W,H;
+  function init(){const d=fit(C);W=d.w;H=d.h;}
+  const data=[
+    {n:2,pairs:1},{n:3,pairs:3},{n:4,pairs:6},{n:5,pairs:10},
+    {n:6,pairs:15},{n:8,pairs:28},{n:10,pairs:45},{n:20,pairs:190}
+  ];
+  let t=0;
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    const pad={l:50,r:20,t:20,b:40};
+    const cw=W-pad.l-pad.r, ch=H-pad.t-pad.b;
+    const maxP=190;
+    const barW=(cw/data.length)*.65;
+    const gap=(cw/data.length)*.35;
+
+    // axes
+    ctx.strokeStyle='rgba(74,96,112,.5)'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(pad.l,pad.t); ctx.lineTo(pad.l,pad.t+ch);
+    ctx.lineTo(pad.l+cw,pad.t+ch); ctx.stroke();
+
+    // y grid
+    for(let i=0;i<=4;i++){
+      const yv=maxP*i/4;
+      const y=pad.t+ch-(ch*i/4);
+      ctx.strokeStyle='rgba(26,46,70,.5)'; ctx.lineWidth=.5;
+      ctx.beginPath(); ctx.moveTo(pad.l,y); ctx.lineTo(pad.l+cw,y); ctx.stroke();
+      ctx.fillStyle='rgba(74,96,112,.7)'; ctx.font='9px monospace';
+      ctx.fillText(String(Math.round(yv)),2,y+3);
+    }
+
+    data.forEach((d,i)=>{
+      const x=pad.l+i*(barW+gap)+gap/2;
+      const maxH=ch*(d.pairs/maxP);
+      const animH=maxH*(clamp(t-i*8,0,40)/40);
+      // bar
+      const gr=ctx.createLinearGradient(0,pad.t+ch-animH,0,pad.t+ch);
+      gr.addColorStop(0,'rgba(124,58,237,.9)'); gr.addColorStop(1,'rgba(0,212,255,.9)');
+      ctx.fillStyle=gr;
+      ctx.beginPath();
+      ctx.roundRect(x,pad.t+ch-animH,barW,animH,3);
+      ctx.fill();
+      // x label
+      ctx.fillStyle='rgba(74,96,112,.8)'; ctx.font='9px monospace';
+      ctx.fillText(`n=${d.n}`,x+(barW/2)-12,pad.t+ch+14);
+      // value on top
+      if(animH>14){
+        ctx.fillStyle='rgba(0,212,255,.9)'; ctx.font='8px monospace';
+        ctx.fillText(String(d.pairs),x+(barW/2)-8,pad.t+ch-animH-4);
+      }
+    });
+
+    ctx.fillStyle='rgba(74,96,112,.7)'; ctx.font='10px monospace';
+    ctx.fillText('coupling pairs',pad.l,14);
+    ctx.fillText('actors (n)',pad.l+cw/2-20,H-4);
+
+    t++;
+    requestAnimationFrame(draw);
+  }
+  init(); window.addEventListener('resize',init); draw();
+})();
+
+/* ════════════════════════════════════
+   C3b — Retarded potential diagram
+════════════════════════════════════ */
+(function c3b(){
+  const C=document.getElementById('c3b');
+  const ctx=C.getContext('2d');
+  let W,H;
+  function init(){const d=fit(C);W=d.w;H=d.h;}
+  let t=0;
+  let waveR=0;
+  const maxWave=W*.6;
+  let waveAlpha=0, waveActive=false, waveTimer=0;
+
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+
+    const ax=W*.2, ay=H*.5;
+    const bx=W*.78, by=H*.5;
+
+    // timeline arrow
+    ctx.strokeStyle='rgba(74,96,112,.4)'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(20,H*.85); ctx.lineTo(W-20,H*.85); ctx.stroke();
+    ctx.fillStyle='rgba(74,96,112,.5)'; ctx.font='9px monospace';
+    ctx.fillText('time →',W/2-18,H*.85+12);
+
+    // A position trail
+    const aHistX=ax-20*(1+Math.sin(t*.018)*5);
+    ctx.strokeStyle='rgba(0,212,255,.2)'; ctx.lineWidth=1; ctx.setLineDash([2,4]);
+    ctx.beginPath(); ctx.moveTo(aHistX,ay-30); ctx.lineTo(aHistX,H*.84); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle='rgba(0,212,255,.4)'; ctx.font='8px monospace';
+    ctx.fillText("A's retarded\nposition",aHistX-10,H*.82);
+
+    // wave ring from A
+    waveTimer++;
+    if(waveTimer>90){ waveTimer=0; waveR=0; waveActive=true; waveAlpha=1; }
+    if(waveActive){
+      waveR+=1.8; waveAlpha=1-waveR/maxWave;
+      ctx.beginPath(); ctx.arc(ax,ay,waveR,0,TAU);
+      ctx.strokeStyle=`rgba(0,212,255,${waveAlpha*.7})`; ctx.lineWidth=1.2; ctx.stroke();
+      if(waveR>=bx-ax){ waveActive=false; }
+    }
+
+    // B receives wave highlight
+    const hit=waveActive&&waveR>=(bx-ax)*.8;
+
+    // Actor A
+    ctx.beginPath(); ctx.arc(ax,ay,13,0,TAU);
+    ctx.fillStyle='rgba(0,212,255,.2)'; ctx.fill();
+    ctx.beginPath(); ctx.arc(ax,ay,7,0,TAU);
+    ctx.fillStyle='#00d4ff'; ctx.fill();
+    ctx.fillStyle='#fff'; ctx.font='bold 11px monospace'; ctx.fillText('A',ax-5,ay-18);
+
+    // Actor B
+    const bcol=hit?'rgba(245,158,11,1)':'rgba(124,58,237,1)';
+    ctx.beginPath(); ctx.arc(bx,by,11,0,TAU);
+    ctx.fillStyle=bcol.replace('1)','0.2)'); ctx.fill();
+    ctx.beginPath(); ctx.arc(bx,by,6,0,TAU);
+    ctx.fillStyle=bcol; ctx.fill();
+    ctx.fillStyle='#fff'; ctx.font='bold 11px monospace'; ctx.fillText('B',bx-5,by-16);
+    if(hit){
+      ctx.fillStyle='rgba(245,158,11,.8)'; ctx.font='9px monospace';
+      ctx.fillText('wave arrived!',bx+10,by-8);
+    }
+
+    // delay annotation
+    ctx.strokeStyle='rgba(74,96,112,.4)'; ctx.lineWidth=1; ctx.setLineDash([3,5]);
+    ctx.beginPath(); ctx.moveTo(ax,ay+35); ctx.lineTo(bx,by+35); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle='rgba(245,158,11,.6)'; ctx.font='9px monospace';
+    ctx.fillText('Δt = distance / c',ax+(bx-ax)/2-40,ay+50);
+
+    ctx.fillStyle='rgba(74,96,112,.7)'; ctx.font='10px monospace';
+    ctx.fillText('B reacts to where A WAS, not where A IS NOW',20,18);
+
+    t++;
+    requestAnimationFrame(draw);
+  }
+  init(); window.addEventListener('resize',init); draw();
+})();
+
+/* ════════════════════════════════════
+   C4 — Quantum paths
+════════════════════════════════════ */
+(function c4(){
+  const C=document.getElementById('c4');
+  const ctx=C.getContext('2d');
+  let W,H;
+  function init(){const d=fit(C);W=d.w;H=d.h;}
+  let t=0;
+  const PATHS=18;
+  const paths=[];
+
+  function buildPaths(){
+    paths.length=0;
+    for(let i=0;i<PATHS;i++){
+      const pts=[];
+      const sx=W*.08, sy=H*.5;
+      const ex=W*.88, ey=H*.5;
+      const segs=12;
+      for(let j=0;j<=segs;j++){
+        const frac=j/segs;
+        const cx=lerp(sx,ex,frac);
+        const cy=lerp(sy,ey,frac)+(Math.random()-.5)*(H*.7)*(1-Math.abs(frac-.5)*2.2);
+        pts.push({x:cx,y:cy});
+      }
+      const w=Math.random();
+      paths.push({
+        pts,
+        amp:Math.random(),
+        phase:Math.random()*TAU,
+        speed:rand(.01,.03),
+        col:w>.6?'0,212,255':w>.3?'124,58,237':'16,185,129',
+        collapsed:false
+      });
+    }
+  }
+
+  let collapseTimer=0, collapsed=false, collapsedIdx=-1;
+
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+
+    collapseTimer++;
+    if(collapseTimer>220){
+      if(!collapsed){ collapsed=true; collapsedIdx=Math.floor(PATHS/2); }
+    }
+    if(collapseTimer>340){ collapsed=false; collapseTimer=0; buildPaths(); }
+
+    // source
+    const sx=W*.08,sy=H*.5, ex=W*.88,ey=H*.5;
+    const srcGrd=ctx.createRadialGradient(sx,sy,0,sx,sy,20);
+    srcGrd.addColorStop(0,'rgba(0,212,255,.8)'); srcGrd.addColorStop(1,'rgba(0,212,255,0)');
+    ctx.beginPath();ctx.arc(sx,sy,20,0,TAU);ctx.fillStyle=srcGrd;ctx.fill();
+    ctx.beginPath();ctx.arc(sx,sy,6,0,TAU);ctx.fillStyle='#00d4ff';ctx.fill();
+    ctx.fillStyle='#c8d8ea';ctx.font='10px monospace';ctx.fillText('SOURCE',sx-20,sy-26);
+
+    // detector
+    const detGrd=ctx.createRadialGradient(ex,ey,0,ex,ey,20);
+    detGrd.addColorStop(0,'rgba(245,158,11,.8)'); detGrd.addColorStop(1,'rgba(245,158,11,0)');
+    ctx.beginPath();ctx.arc(ex,ey,20,0,TAU);ctx.fillStyle=detGrd;ctx.fill();
+    ctx.beginPath();ctx.arc(ex,ey,6,0,TAU);ctx.fillStyle='#f59e0b';ctx.fill();
+    ctx.fillStyle='#c8d8ea';ctx.font='10px monospace';ctx.fillText('DETECTOR',ex-26,ey-26);
+
+    // paths
+    paths.forEach((p,i)=>{
+      const active=t*(p.speed)+p.phase;
+      const wave=0.5+0.5*Math.sin(active);
+      const alpha = collapsed
+        ? (i===collapsedIdx ? 0.95 : 0.04)
+        : p.amp*wave*.55+.08;
+      const lw = collapsed && i===collapsedIdx ? 2.5 : 1;
+
+      ctx.beginPath();
+      p.pts.forEach((pt,j)=>j===0?ctx.moveTo(pt.x,pt.y):ctx.lineTo(pt.x,pt.y));
+      ctx.strokeStyle=`rgba(${p.col},${alpha})`;
+      ctx.lineWidth=lw; ctx.stroke();
+    });
+
+    // collapse label
+    if(collapsed){
+      ctx.fillStyle='rgba(244,63,94,.85)'; ctx.font='bold 12px monospace';
+      ctx.fillText('OBSERVATION → wavefunction collapsed to 1 path',W/2-170,30);
+    } else {
+      ctx.fillStyle='rgba(74,96,112,.7)'; ctx.font='10px monospace';
+      ctx.fillText(`${PATHS} simultaneous quantum paths — all real until observed`,20,20);
+    }
+
+    t++;
+    requestAnimationFrame(draw);
+  }
+  init(); buildPaths(); window.addEventListener('resize',()=>{init();buildPaths();}); draw();
+})();
+
+/* ════════════════════════════════════
+   C5 — Spiral galaxy time arms
+════════════════════════════════════ */
+(function c5(){
+  const C=document.getElementById('c5');
+  const ctx=C.getContext('2d');
+  let W,H;
+  function init(){const d=fit(C);W=d.w;H=d.h;}
+  let t=0;
+  const STARS=320;
+  const stars=[];
+
+  function buildStars(){
+    stars.length=0;
+    for(let i=0;i<STARS;i++){
+      const arm=Math.random()>.5?0:1;
+      const frac=Math.random();
+      const theta = frac*TAU*2.2 + arm*Math.PI;
+      const r = 20+frac*Math.min(W,H)*.39;
+      const spread = 14+frac*18;
+      const sx = Math.cos(theta)*r + rand(-spread,spread);
+      const sy = Math.sin(theta)*r + rand(-spread,spread);
+      stars.push({
+        x:sx, y:sy,
+        arm,
+        frac,
+        r:rand(.8,3),
+        twinkle:rand(0,TAU),
+        ts:rand(.02,.07),
+        past:frac>.5
+      });
+    }
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    const cx=W/2, cy=H/2;
+
+    // deep background glow
+    const bg=ctx.createRadialGradient(cx,cy,0,cx,cy,Math.min(W,H)*.55);
+    bg.addColorStop(0,'rgba(11,21,35,.8)'); bg.addColorStop(1,'rgba(5,10,16,0)');
+    ctx.beginPath();ctx.arc(cx,cy,Math.min(W,H)*.55,0,TAU);
+    ctx.fillStyle=bg;ctx.fill();
+
+    // rotate around centre
+    ctx.save(); ctx.translate(cx,cy); ctx.rotate(t*.003);
+
+    // draw stars
+    stars.forEach(s=>{
+      const tw=0.5+0.5*Math.sin(s.twinkle+t*s.ts);
+      // past arm = blue/cyan, future arm = violet/purple
+      const col = s.past
+        ? `rgba(0,${Math.floor(lerp(100,212,s.frac))},255,${tw*.8+.1})`
+        : `rgba(${Math.floor(lerp(80,200,s.frac))},${Math.floor(lerp(40,58,s.frac))},237,${tw*.7+.1})`;
+      ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,TAU);
+      ctx.fillStyle=col;ctx.fill();
+      // glow for bright stars
+      if(s.r>2){
+        const g=ctx.createRadialGradient(s.x,s.y,0,s.x,s.y,s.r*4);
+        g.addColorStop(0,col.replace(/[\d.]+\)$/,'.3)'));
+        g.addColorStop(1,'rgba(0,0,0,0)');
+        ctx.beginPath();ctx.arc(s.x,s.y,s.r*4,0,TAU);
+        ctx.fillStyle=g;ctx.fill();
+      }
+    });
+
+    // centre core
+    const core=ctx.createRadialGradient(0,0,0,0,0,28);
+    core.addColorStop(0,'rgba(255,255,255,.9)');
+    core.addColorStop(.4,'rgba(0,212,255,.5)');
+    core.addColorStop(1,'rgba(0,212,255,0)');
+    ctx.beginPath();ctx.arc(0,0,28,0,TAU);ctx.fillStyle=core;ctx.fill();
+    ctx.beginPath();ctx.arc(0,0,6,0,TAU);ctx.fillStyle='#fff';ctx.fill();
+
+    ctx.restore();
+
+    // annotations (fixed, outside rotation)
+    ctx.fillStyle='rgba(0,212,255,.75)'; ctx.font='bold 11px monospace';
+    ctx.fillText('PAST ARM — crystallised events, high density = strong memory',cx+W*.25,cy-H*.25);
+    ctx.fillStyle='rgba(124,58,237,.75)'; ctx.font='bold 11px monospace';
+    ctx.fillText('FUTURE ARM — probability fog, focused by intention',cx-W*.48,cy+H*.28);
+    ctx.fillStyle='rgba(255,255,255,.8)'; ctx.font='bold 11px monospace';
+    ctx.fillText('NOW',cx+6,cy-14);
+    ctx.fillStyle='rgba(74,96,112,.7)'; ctx.font='9px monospace';
+    ctx.fillText('Spiral rotates — stars are memory events — density = recall strength',20,18);
+
+    t++;
+    requestAnimationFrame(draw);
+  }
+  init(); buildStars(); window.addEventListener('resize',()=>{init();buildStars();}); draw();
+})();
+</script>
+</body>
+</html>
