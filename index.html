@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Memory Control — Neural Recall Engine</title>
+  <style>
+    /* ── reset & tokens ─────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #050a10;
+      --surface:   #0b1523;
+      --border:    #1a2e46;
+      --accent:    #00d4ff;
+      --accent2:   #7c3aed;
+      --accent3:   #10b981;
+      --text:      #c8d8ea;
+      --muted:     #4a6070;
+      --danger:    #f43f5e;
+      --glow:      0 0 18px rgba(0,212,255,.35);
+      --glow2:     0 0 18px rgba(124,58,237,.4);
+      --radius:    10px;
+      --font:      'Segoe UI', system-ui, sans-serif;
+    }
+
+    html, body { height: 100%; background: var(--bg); color: var(--text);
+                 font-family: var(--font); overflow: hidden; }
+
+    /* ── layout ─────────────────────────────────────────── */
+    .shell {
+      display: grid;
+      grid-template-rows: 56px 1fr 180px;
+      grid-template-columns: 260px 1fr 260px;
+      grid-template-areas:
+        "hdr  hdr  hdr"
+        "left viz  right"
+        "bar  bar  bar";
+      height: 100vh;
+      gap: 1px;
+      background: var(--border);
+    }
+
+    /* ── header ─────────────────────────────────────────── */
+    header {
+      grid-area: hdr;
+      background: var(--surface);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      border-bottom: 1px solid var(--border);
+    }
+    .logo { display: flex; align-items: center; gap: 10px; }
+    .logo-icon { width: 28px; height: 28px; }
+    .logo-text { font-size: 15px; font-weight: 700; letter-spacing: .06em;
+                 color: var(--accent); text-transform: uppercase; }
+    .logo-sub  { font-size: 10px; color: var(--muted); letter-spacing: .12em; }
+
+    .hdr-center { display: flex; gap: 8px; }
+    .badge {
+      font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+      padding: 3px 10px; border-radius: 20px; border: 1px solid;
+    }
+    .badge-live   { border-color: var(--accent3); color: var(--accent3);
+                    animation: pulse-badge 2s ease-in-out infinite; }
+    .badge-gamma  { border-color: var(--accent);  color: var(--accent); }
+    .badge-ai     { border-color: var(--accent2); color: var(--accent2); }
+    @keyframes pulse-badge {
+      0%,100% { opacity: 1; } 50% { opacity: .4; }
+    }
+
+    .hdr-right { display: flex; align-items: center; gap: 20px; }
+    .stat-mini { text-align: right; }
+    .stat-mini .val { font-size: 15px; font-weight: 700; color: var(--accent); }
+    .stat-mini .lbl { font-size: 9px; color: var(--muted); letter-spacing: .1em; }
+
+    /* ── left panel ──────────────────────────────────────── */
+    .left-panel {
+      grid-area: left;
+      background: var(--surface);
+      display: flex; flex-direction: column;
+      padding: 16px;
+      gap: 14px;
+      overflow: hidden;
+    }
+
+    .panel-title {
+      font-size: 9px; letter-spacing: .16em; text-transform: uppercase;
+      color: var(--muted); border-bottom: 1px solid var(--border);
+      padding-bottom: 6px;
+    }
+
+    /* search */
+    .search-wrap {
+      position: relative;
+    }
+    .search-wrap input {
+      width: 100%; padding: 9px 36px 9px 12px;
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: var(--radius); color: var(--text);
+      font-size: 12px; outline: none;
+      transition: border-color .2s, box-shadow .2s;
+    }
+    .search-wrap input:focus {
+      border-color: var(--accent); box-shadow: var(--glow);
+    }
+    .search-wrap input::placeholder { color: var(--muted); }
+    .search-icon {
+      position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+      color: var(--muted); font-size: 14px; cursor: pointer;
+      transition: color .2s;
+    }
+    .search-icon:hover { color: var(--accent); }
+
+    /* recall results */
+    .recall-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+    .recall-list::-webkit-scrollbar { width: 3px; }
+    .recall-list::-webkit-scrollbar-track { background: transparent; }
+    .recall-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    .memory-card {
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 10px;
+      cursor: pointer; transition: border-color .2s, box-shadow .2s;
+      position: relative; overflow: hidden;
+    }
+    .memory-card::before {
+      content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+      background: var(--accent); opacity: 0; transition: opacity .2s;
+    }
+    .memory-card:hover { border-color: var(--accent); box-shadow: var(--glow); }
+    .memory-card:hover::before { opacity: 1; }
+    .memory-card.active { border-color: var(--accent2); box-shadow: var(--glow2); }
+    .memory-card.active::before { background: var(--accent2); opacity: 1; }
+
+    .mc-top { display: flex; justify-content: space-between; align-items: center;
+              margin-bottom: 4px; }
+    .mc-label { font-size: 11px; font-weight: 600; color: var(--text); }
+    .mc-conf { font-size: 9px; color: var(--accent3); }
+    .mc-time { font-size: 9px; color: var(--muted); margin-bottom: 4px; }
+    .mc-tags { display: flex; gap: 4px; flex-wrap: wrap; }
+    .tag {
+      font-size: 8px; letter-spacing: .08em; padding: 2px 6px;
+      border-radius: 10px; background: rgba(0,212,255,.08);
+      border: 1px solid rgba(0,212,255,.2); color: var(--accent);
+    }
+
+    /* confidence bar */
+    .conf-bar-wrap { margin-top: 5px; }
+    .conf-bar-bg { height: 2px; background: var(--border); border-radius: 1px; overflow: hidden; }
+    .conf-bar-fill { height: 100%; border-radius: 1px; transition: width 1s ease; }
+
+    /* ── centre viz ──────────────────────────────────────── */
+    .viz-panel {
+      grid-area: viz;
+      background: var(--bg);
+      position: relative; overflow: hidden;
+    }
+    #network-canvas { display: block; width: 100%; height: 100%; }
+
+    /* overlay labels */
+    .viz-label {
+      position: absolute; font-size: 9px; letter-spacing: .14em;
+      text-transform: uppercase; color: var(--muted);
+    }
+    .viz-label.tl { top: 14px; left: 16px; }
+    .viz-label.tr { top: 14px; right: 16px; }
+    .viz-label.br { bottom: 14px; right: 16px; }
+
+    .crosshair {
+      position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+    }
+    .crosshair::before, .crosshair::after {
+      content: ''; position: absolute; background: rgba(0,212,255,.15);
+    }
+    .crosshair::before { width: 1px; height: 60px; left: 0; top: -30px; }
+    .crosshair::after  { width: 60px; height: 1px; left: -30px; top: 0; }
+
+    /* recall pulse ring */
+    .recall-ring {
+      position: absolute; top: 50%; left: 50%;
+      width: 0; height: 0;
+      border-radius: 50%;
+      border: 1px solid var(--accent);
+      transform: translate(-50%,-50%);
+      pointer-events: none;
+      animation: ring-expand 2.5s ease-out infinite;
+    }
+    @keyframes ring-expand {
+      0%   { width: 0;    height: 0;    opacity: .8; }
+      100% { width: 400px; height: 400px; opacity: 0; }
+    }
+
+    /* ── right panel ─────────────────────────────────────── */
+    .right-panel {
+      grid-area: right;
+      background: var(--surface);
+      display: flex; flex-direction: column;
+      padding: 16px; gap: 14px; overflow: hidden;
+    }
+
+    .stat-block {
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 12px;
+    }
+    .sb-val  { font-size: 26px; font-weight: 700; color: var(--accent);
+               font-variant-numeric: tabular-nums; }
+    .sb-lbl  { font-size: 9px; letter-spacing: .12em; color: var(--muted);
+               text-transform: uppercase; margin-top: 2px; }
+    .sb-delta { font-size: 10px; color: var(--accent3); margin-top: 4px; }
+
+    /* mini bar chart */
+    .mini-chart { display: flex; align-items: flex-end; gap: 3px; height: 40px;
+                  margin-top: 8px; }
+    .bar {
+      flex: 1; border-radius: 2px 2px 0 0;
+      background: linear-gradient(to top, var(--accent2), var(--accent));
+      opacity: .7; transition: opacity .2s;
+    }
+    .bar:hover { opacity: 1; }
+
+    /* vector grid */
+    .vec-grid {
+      display: grid; grid-template-columns: repeat(8, 1fr); gap: 3px;
+      margin-top: 8px;
+    }
+    .vec-cell {
+      aspect-ratio: 1; border-radius: 2px;
+      transition: background .4s;
+    }
+
+    /* ── bottom bar (gamma + timeline) ───────────────────── */
+    .bottom-bar {
+      grid-area: bar;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      display: grid;
+      grid-template-columns: 1fr 2fr;
+      gap: 1px;
+    }
+    .gamma-panel, .timeline-panel {
+      padding: 10px 16px;
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    .gamma-panel { border-right: 1px solid var(--border); }
+
+    #gamma-canvas  { width: 100%; height: 80px; display: block; }
+    #timeline-canvas { width: 100%; height: 80px; display: block; }
+
+    /* ── utils ───────────────────────────────────────────── */
+    .flex-between { display: flex; justify-content: space-between; align-items: center; }
+
+    /* ── responsive hint ─────────────────────────────────── */
+    @media (max-width: 900px) {
+      .shell {
+        grid-template-columns: 200px 1fr 200px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<div class="shell">
+
+  <!-- ── HEADER ── -->
+  <header>
+    <div class="logo">
+      <svg class="logo-icon" viewBox="0 0 28 28" fill="none">
+        <circle cx="14" cy="14" r="13" stroke="#00d4ff" stroke-width="1.2"/>
+        <circle cx="14" cy="14" r="5" fill="rgba(0,212,255,.15)" stroke="#00d4ff" stroke-width="1"/>
+        <line x1="14" y1="1" x2="14" y2="7" stroke="#00d4ff" stroke-width="1"/>
+        <line x1="14" y1="21" x2="14" y2="27" stroke="#00d4ff" stroke-width="1"/>
+        <line x1="1" y1="14" x2="7" y2="14" stroke="#00d4ff" stroke-width="1"/>
+        <line x1="21" y1="14" x2="27" y2="14" stroke="#00d4ff" stroke-width="1"/>
+        <circle cx="14" cy="14" r="2" fill="#00d4ff"/>
+      </svg>
+      <div>
+        <div class="logo-text">Memory Control</div>
+        <div class="logo-sub">Neural Recall Engine v0.1</div>
+      </div>
+    </div>
+
+    <div class="hdr-center">
+      <span class="badge badge-live">● Live</span>
+      <span class="badge badge-gamma">γ Gamma Active</span>
+      <span class="badge badge-ai">AI Reasoning</span>
+    </div>
+
+    <div class="hdr-right">
+      <div class="stat-mini">
+        <div class="val" id="hdr-nodes">0</div>
+        <div class="lbl">Memory Nodes</div>
+      </div>
+      <div class="stat-mini">
+        <div class="val" id="hdr-elapsed">00:00</div>
+        <div class="lbl">Time Elapsed</div>
+      </div>
+      <div class="stat-mini">
+        <div class="val" id="hdr-confidence">—</div>
+        <div class="lbl">Recall Conf.</div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ── LEFT PANEL ── -->
+  <aside class="left-panel">
+    <div class="panel-title">Memory Search</div>
+
+    <div class="search-wrap">
+      <input id="search-input" type="text" placeholder="Query memory vector space…" />
+      <span class="search-icon" id="search-btn">⌕</span>
+    </div>
+
+    <div class="panel-title" style="margin-top:4px">Recall Results</div>
+    <div class="recall-list" id="recall-list"></div>
+  </aside>
+
+  <!-- ── CENTRE VISUALIZATION ── -->
+  <main class="viz-panel">
+    <canvas id="network-canvas"></canvas>
+    <div class="viz-label tl">Neural Memory Network</div>
+    <div class="viz-label tr" id="node-count-label">0 vectors</div>
+    <div class="viz-label br" id="freq-label">γ 0 Hz</div>
+    <div class="crosshair"></div>
+    <div class="recall-ring"></div>
+  </main>
+
+  <!-- ── RIGHT PANEL ── -->
+  <aside class="right-panel">
+    <div class="panel-title">Recall Metrics</div>
+
+    <div class="stat-block">
+      <div class="sb-val" id="metric-recalled">0</div>
+      <div class="sb-lbl">Memories Recalled</div>
+      <div class="sb-delta" id="metric-delta">+0 this session</div>
+      <div class="mini-chart" id="recall-chart"></div>
+    </div>
+
+    <div class="stat-block">
+      <div class="sb-val" id="metric-conf">0%</div>
+      <div class="sb-lbl">Avg Recall Confidence</div>
+      <div class="conf-bar-wrap">
+        <div class="conf-bar-bg">
+          <div class="conf-bar-fill" id="conf-fill" style="width:0%; background: linear-gradient(90deg,#7c3aed,#00d4ff)"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel-title">Memory Vector Map</div>
+    <div class="vec-grid" id="vec-grid"></div>
+  </aside>
+
+  <!-- ── BOTTOM BAR ── -->
+  <div class="bottom-bar">
+    <div class="gamma-panel">
+      <div class="flex-between">
+        <span class="panel-title">Gamma Wave · 30–100 Hz</span>
+        <span style="font-size:9px;color:var(--accent)" id="gamma-hz">40 Hz</span>
+      </div>
+      <canvas id="gamma-canvas"></canvas>
+    </div>
+    <div class="timeline-panel">
+      <div class="flex-between">
+        <span class="panel-title">Memory Timeline — Points in Time</span>
+        <span style="font-size:9px;color:var(--muted)" id="tl-range">T-0s → now</span>
+      </div>
+      <canvas id="timeline-canvas"></canvas>
+    </div>
+  </div>
+
+</div><!-- /shell -->
+
+<script>
+/* ── helpers ─────────────────────────────────────────────── */
+const $ = id => document.getElementById(id);
+const rand  = (a, b) => Math.random() * (b - a) + a;
+const randI = (a, b) => Math.floor(rand(a, b));
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const lerp  = (a, b, t) => a + (b - a) * t;
+
+/* ── sample memory data ───────────────────────────────────── */
+const MEMORIES = [
+  { id: 1,  label: "First light perception",      time: "T-62.4s", conf: 0.97, tags: ["visual","gamma","encoded"],   vec: [0.9,0.2,0.8,0.1] },
+  { id: 2,  label: "Spatial orientation map",     time: "T-58.1s", conf: 0.91, tags: ["spatial","hippocampus"],      vec: [0.4,0.8,0.3,0.7] },
+  { id: 3,  label: "Emotional resonance peak",    time: "T-51.7s", conf: 0.88, tags: ["limbic","theta"],             vec: [0.7,0.5,0.9,0.3] },
+  { id: 4,  label: "Autobiographical sequence",   time: "T-44.2s", conf: 0.95, tags: ["recall","compressed"],        vec: [0.6,0.9,0.4,0.8] },
+  { id: 5,  label: "Language encoding burst",     time: "T-38.9s", conf: 0.82, tags: ["Broca","verbal"],             vec: [0.3,0.6,0.7,0.5] },
+  { id: 6,  label: "Pattern recognition loop",    time: "T-31.3s", conf: 0.93, tags: ["cortex","visual","loop"],     vec: [0.8,0.3,0.6,0.9] },
+  { id: 7,  label: "Deep-memory consolidation",   time: "T-24.0s", conf: 0.76, tags: ["REM","sleep","delta"],        vec: [0.2,0.7,0.5,0.4] },
+  { id: 8,  label: "Working-memory buffer flush", time: "T-17.8s", conf: 0.89, tags: ["prefrontal","WM"],            vec: [0.5,0.4,0.8,0.2] },
+  { id: 9,  label: "Life-review gamma surge",     time: "T-9.5s",  conf: 0.99, tags: ["gamma","final","recall"],    vec: [1.0,0.9,1.0,0.8] },
+  { id: 10, label: "Neural replay initiation",    time: "T-4.2s",  conf: 0.94, tags: ["replay","beta","theta"],     vec: [0.7,0.8,0.6,0.9] },
+];
+
+/* ── timer ─────────────────────────────────────────────────── */
+let startTime = Date.now();
+function elapsed() {
+  const s = Math.floor((Date.now() - startTime) / 1000);
+  const m = Math.floor(s / 60);
+  return `${String(m).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+}
+
+/* ── render recall list ───────────────────────────────────── */
+function renderRecallList(query = '') {
+  const list = $('recall-list');
+  list.innerHTML = '';
+  const filtered = query
+    ? MEMORIES.filter(m =>
+        m.label.toLowerCase().includes(query.toLowerCase()) ||
+        m.tags.some(t => t.toLowerCase().includes(query.toLowerCase())))
+    : MEMORIES;
+
+  filtered.forEach((m, i) => {
+    const card = document.createElement('div');
+    card.className = 'memory-card' + (i === 0 ? ' active' : '');
+    card.innerHTML = `
+      <div class="mc-top">
+        <span class="mc-label">${m.label}</span>
+        <span class="mc-conf">${Math.round(m.conf*100)}%</span>
+      </div>
+      <div class="mc-time">${m.time}</div>
+      <div class="mc-tags">${m.tags.map(t=>`<span class="tag">${t}</span>`).join('')}</div>
+      <div class="conf-bar-wrap" style="margin-top:6px">
+        <div class="conf-bar-bg">
+          <div class="conf-bar-fill" style="width:${m.conf*100}%;
+               background:linear-gradient(90deg,var(--accent2),var(--accent))"></div>
+        </div>
+      </div>`;
+    card.addEventListener('click', () => {
+      document.querySelectorAll('.memory-card').forEach(c=>c.classList.remove('active'));
+      card.classList.add('active');
+      highlightNode(m.id);
+    });
+    list.appendChild(card);
+  });
+}
+renderRecallList();
+
+/* search */
+$('search-btn').addEventListener('click', () => renderRecallList($('search-input').value));
+$('search-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') renderRecallList($('search-input').value);
+  if (e.key === 'Escape') { $('search-input').value = ''; renderRecallList(); }
+});
+
+/* ── vector grid ─────────────────────────────────────────── */
+const VG = $('vec-grid');
+const VEC_CELLS = 64;
+const cells = [];
+for (let i = 0; i < VEC_CELLS; i++) {
+  const d = document.createElement('div');
+  d.className = 'vec-cell';
+  VG.appendChild(d); cells.push(d);
+}
+function updateVecGrid() {
+  cells.forEach(c => {
+    const v = Math.random();
+    const h = v > .7 ? '0,212,255' : v > .4 ? '124,58,237' : '16,185,129';
+    c.style.background = `rgba(${h},${v * .9 + .05})`;
+  });
+}
+updateVecGrid();
+setInterval(updateVecGrid, 1200);
+
+/* ── mini recall bar chart ─────────────────────────────────── */
+const CHART = $('recall-chart');
+const BARS = 14;
+const barEls = [];
+for (let i = 0; i < BARS; i++) {
+  const b = document.createElement('div');
+  b.className = 'bar';
+  b.style.height = `${rand(10,100)}%`;
+  CHART.appendChild(b); barEls.push(b);
+}
+function shiftChart() {
+  barEls.forEach((b,i) => {
+    if (i < BARS-1) b.style.height = barEls[i+1].style.height;
+    else b.style.height = `${rand(20,100)}%`;
+  });
+}
+setInterval(shiftChart, 800);
+
+/* ── live metrics ─────────────────────────────────────────── */
+let recalledCount = 0;
+let sessionDelta  = 0;
+let avgConf       = 0;
+
+function updateMetrics() {
+  const inc = randI(0,3);
+  recalledCount += inc; sessionDelta += inc;
+  avgConf = lerp(avgConf, rand(.78,.99), .08);
+  $('metric-recalled').textContent = recalledCount;
+  $('metric-delta').textContent = `+${sessionDelta} this session`;
+  $('metric-conf').textContent   = `${Math.round(avgConf*100)}%`;
+  $('conf-fill').style.width     = `${avgConf*100}%`;
+  $('hdr-nodes').textContent     = MEMORIES.length + randI(0,4);
+  $('hdr-elapsed').textContent   = elapsed();
+  $('hdr-confidence').textContent = `${Math.round(avgConf*100)}%`;
+  $('node-count-label').textContent = `${MEMORIES.length + randI(0,6)} vectors`;
+  $('freq-label').textContent = `γ ${randI(38,62)} Hz`;
+}
+updateMetrics();
+setInterval(updateMetrics, 1600);
+
+/* ══════════════════════════════════════════════════════════
+   NETWORK CANVAS
+══════════════════════════════════════════════════════════ */
+const NET = $('network-canvas');
+const nctx = NET.getContext('2d');
+let W, H;
+let nodes = [], highlighted = null;
+
+function resizeNet() {
+  const rect = NET.parentElement.getBoundingClientRect();
+  W = NET.width  = rect.width;
+  H = NET.height = rect.height;
+  initNodes();
+}
+
+function initNodes() {
+  nodes = MEMORIES.map((m, i) => ({
+    id:   m.id,
+    x:    rand(60, W - 60),
+    y:    rand(60, H - 60),
+    vx:   rand(-.4, .4),
+    vy:   rand(-.4, .4),
+    r:    rand(4, 9),
+    base: rand(4, 9),
+    conf: m.conf,
+    label: m.label,
+    hue:  m.conf > .9 ? 'cyan' : m.conf > .8 ? 'violet' : 'green',
+    pulse: 0,
+  }));
+}
+
+function highlightNode(id) {
+  highlighted = id;
+  const n = nodes.find(n => n.id === id);
+  if (n) { n.pulse = 1; }
+}
+
+function drawNetwork(ts) {
+  nctx.clearRect(0, 0, W, H);
+
+  /* faint grid */
+  nctx.strokeStyle = 'rgba(26,46,70,.4)'; nctx.lineWidth = .5;
+  const gs = 60;
+  for (let x = 0; x < W; x += gs) { nctx.beginPath(); nctx.moveTo(x,0); nctx.lineTo(x,H); nctx.stroke(); }
+  for (let y = 0; y < H; y += gs) { nctx.beginPath(); nctx.moveTo(0,y); nctx.lineTo(W,y); nctx.stroke(); }
+
+  /* edges */
+  for (let i = 0; i < nodes.length; i++) {
+    for (let j = i+1; j < nodes.length; j++) {
+      const a = nodes[i], b = nodes[j];
+      const dx = a.x-b.x, dy = a.y-b.y;
+      const dist = Math.sqrt(dx*dx+dy*dy);
+      if (dist > 200) continue;
+      const alpha = (1 - dist/200) * .35;
+      const isHl = highlighted && (a.id===highlighted || b.id===highlighted);
+      nctx.beginPath();
+      nctx.moveTo(a.x, a.y); nctx.lineTo(b.x, b.y);
+      nctx.strokeStyle = isHl
+        ? `rgba(124,58,237,${alpha*2.5})`
+        : `rgba(0,212,255,${alpha})`;
+      nctx.lineWidth = isHl ? 1.2 : .6;
+      nctx.stroke();
+    }
+  }
+
+  /* nodes */
+  nodes.forEach(n => {
+    /* drift */
+    n.x = clamp(n.x + n.vx, 20, W-20);
+    n.y = clamp(n.y + n.vy, 20, H-20);
+    if (n.x <= 20 || n.x >= W-20) n.vx *= -1;
+    if (n.y <= 20 || n.y >= H-20) n.vy *= -1;
+
+    /* pulse */
+    n.pulse = Math.max(0, n.pulse - .02);
+    n.r = n.base + n.pulse * 6;
+
+    const isHl = n.id === highlighted;
+    const col = n.hue === 'cyan'   ? [0,212,255]
+              : n.hue === 'violet' ? [124,58,237]
+              :                      [16,185,129];
+    const [r,g,b] = col;
+
+    /* glow */
+    if (isHl) {
+      const g2 = nctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, n.r*5);
+      g2.addColorStop(0, `rgba(${r},${g},${b},.5)`);
+      g2.addColorStop(1, `rgba(${r},${g},${b},0)`);
+      nctx.beginPath(); nctx.arc(n.x, n.y, n.r*5, 0, Math.PI*2);
+      nctx.fillStyle = g2; nctx.fill();
+    }
+
+    /* core */
+    nctx.beginPath(); nctx.arc(n.x, n.y, n.r, 0, Math.PI*2);
+    nctx.fillStyle = `rgba(${r},${g},${b},${isHl ? 1 : .75})`;
+    nctx.fill();
+
+    /* ring */
+    nctx.beginPath(); nctx.arc(n.x, n.y, n.r + 2, 0, Math.PI*2);
+    nctx.strokeStyle = `rgba(${r},${g},${b},.4)`;
+    nctx.lineWidth = 1; nctx.stroke();
+
+    /* label */
+    if (isHl || n.r > 7) {
+      nctx.fillStyle = `rgba(200,216,234,${isHl ? 1 : .65})`;
+      nctx.font = `${isHl ? '11px' : '9px'} monospace`;
+      nctx.fillText(n.label, n.x + n.r + 4, n.y + 3);
+    }
+  });
+
+  requestAnimationFrame(drawNetwork);
+}
+
+resizeNet();
+window.addEventListener('resize', resizeNet);
+requestAnimationFrame(drawNetwork);
+
+/* ══════════════════════════════════════════════════════════
+   GAMMA WAVE CANVAS
+══════════════════════════════════════════════════════════ */
+const GC = $('gamma-canvas');
+const gctx = GC.getContext('2d');
+let gW, gH;
+let gammaOffset = 0;
+let gammaFreq = 40;
+
+function resizeGamma() {
+  const r = GC.parentElement.getBoundingClientRect();
+  gW = GC.width = r.width - 32;
+  gH = GC.height = 80;
+}
+resizeGamma();
+
+function drawGamma() {
+  gctx.clearRect(0, 0, gW, gH);
+
+  /* background */
+  gctx.fillStyle = 'rgba(5,10,16,.5)';
+  gctx.fillRect(0, 0, gW, gH);
+
+  /* baseline */
+  gctx.strokeStyle = 'rgba(26,46,70,.5)'; gctx.lineWidth = 1;
+  gctx.beginPath(); gctx.moveTo(0, gH/2); gctx.lineTo(gW, gH/2); gctx.stroke();
+
+  /* wave */
+  const freq = gammaFreq / 20;
+  gctx.beginPath();
+  const grad = gctx.createLinearGradient(0, 0, gW, 0);
+  grad.addColorStop(0,   'rgba(0,212,255,0)');
+  grad.addColorStop(0.1, 'rgba(0,212,255,1)');
+  grad.addColorStop(0.9, 'rgba(0,212,255,1)');
+  grad.addColorStop(1,   'rgba(0,212,255,0)');
+  gctx.strokeStyle = grad; gctx.lineWidth = 1.5;
+
+  for (let x = 0; x <= gW; x++) {
+    const t = (x / gW) * Math.PI * 2 * freq + gammaOffset;
+    const amp = gH * .35 * (0.7 + 0.3 * Math.sin(gammaOffset * .3));
+    const y = gH/2 - Math.sin(t) * amp * Math.exp(-Math.pow((x/gW-.5)*2,2)*.5);
+    x === 0 ? gctx.moveTo(x, y) : gctx.lineTo(x, y);
+  }
+  gctx.stroke();
+
+  gammaOffset += 0.12;
+  gammaFreq = 38 + 24 * (0.5 + 0.5 * Math.sin(gammaOffset * .05));
+  $('gamma-hz').textContent = `${Math.round(gammaFreq)} Hz`;
+
+  requestAnimationFrame(drawGamma);
+}
+drawGamma();
+
+/* ══════════════════════════════════════════════════════════
+   TIMELINE CANVAS
+══════════════════════════════════════════════════════════ */
+const TL = $('timeline-canvas');
+const tctx = TL.getContext('2d');
+let tW, tH;
+const TL_POINTS = [...MEMORIES.map((m, i) => ({
+  t: i / (MEMORIES.length - 1),
+  conf: m.conf,
+  label: m.label,
+  hue: m.conf > .9 ? [0,212,255] : m.conf > .8 ? [124,58,237] : [16,185,129],
+}))];
+let tlOffset = 0;
+
+function resizeTimeline() {
+  const r = TL.parentElement.getBoundingClientRect();
+  tW = TL.width = r.width - 32;
+  tH = TL.height = 80;
+}
+resizeTimeline();
+
+function drawTimeline() {
+  tctx.clearRect(0, 0, tW, tH);
+  tctx.fillStyle = 'rgba(5,10,16,.5)';
+  tctx.fillRect(0, 0, tW, tH);
+
+  /* axis */
+  const ay = tH * .65;
+  tctx.strokeStyle = 'rgba(26,46,70,.8)'; tctx.lineWidth = 1;
+  tctx.beginPath(); tctx.moveTo(20, ay); tctx.lineTo(tW-20, ay); tctx.stroke();
+
+  /* ticks */
+  for (let i = 0; i <= 10; i++) {
+    const x = 20 + (tW-40) * i/10;
+    tctx.strokeStyle = 'rgba(74,96,112,.5)'; tctx.lineWidth = 1;
+    tctx.beginPath(); tctx.moveTo(x, ay-3); tctx.lineTo(x, ay+3); tctx.stroke();
+  }
+
+  /* memory points */
+  TL_POINTS.forEach((p, idx) => {
+    const wave = Math.sin(tlOffset * .04 + idx * 1.1) * 4;
+    const x = 20 + (tW-40) * p.t;
+    const baseY = ay - p.conf * 40;
+    const y = baseY + wave;
+    const [r,g,b] = p.hue;
+    const big = p.conf > .93;
+
+    /* stem */
+    tctx.strokeStyle = `rgba(${r},${g},${b},.3)`;
+    tctx.lineWidth = 1;
+    tctx.beginPath(); tctx.moveTo(x, ay); tctx.lineTo(x, y + (big ? 6 : 4)); tctx.stroke();
+
+    /* glow */
+    const grd = tctx.createRadialGradient(x,y,0,x,y,big?12:8);
+    grd.addColorStop(0, `rgba(${r},${g},${b},.5)`);
+    grd.addColorStop(1, `rgba(${r},${g},${b},0)`);
+    tctx.beginPath(); tctx.arc(x, y, big?12:8, 0, Math.PI*2);
+    tctx.fillStyle = grd; tctx.fill();
+
+    /* dot */
+    tctx.beginPath(); tctx.arc(x, y, big ? 5 : 3.5, 0, Math.PI*2);
+    tctx.fillStyle = `rgba(${r},${g},${b},1)`; tctx.fill();
+
+    /* label on hover-approximated big nodes */
+    if (big) {
+      tctx.fillStyle = `rgba(${r},${g},${b},.85)`;
+      tctx.font = '8px monospace';
+      tctx.fillText(p.label.split(' ').slice(0,3).join(' '), x+7, y-4);
+    }
+  });
+
+  /* "now" cursor */
+  const nx = 20 + (tW-40) * (0.9 + 0.1 * Math.sin(tlOffset*.01));
+  tctx.strokeStyle = 'rgba(244,63,94,.8)'; tctx.lineWidth = 1.5;
+  tctx.setLineDash([3,3]);
+  tctx.beginPath(); tctx.moveTo(nx, 8); tctx.lineTo(nx, tH-8); tctx.stroke();
+  tctx.setLineDash([]);
+  tctx.fillStyle = 'rgba(244,63,94,.9)';
+  tctx.font = '8px monospace'; tctx.fillText('now', nx+3, 16);
+
+  tlOffset++;
+  const span = Math.floor(tlOffset / 60);
+  $('tl-range').textContent = `T-62s → T+${span}s`;
+
+  requestAnimationFrame(drawTimeline);
+}
+drawTimeline();
+
+window.addEventListener('resize', () => { resizeGamma(); resizeTimeline(); });
+</script>
+</body>
+</html>
